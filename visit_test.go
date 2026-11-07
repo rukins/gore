@@ -42,9 +42,9 @@ func TestVisitorCookieScope(t *testing.T) {
 		t.Fatalf("got %d cookies, want 1", len(cookies))
 	}
 	c := cookies[0]
-	if c.Name != redirVidCookie || c.Value != vid {
+	if c.Name != goreVidCookie || c.Value != vid {
 		t.Fatalf("cookie = %v=%v, want %v=%v",
-			c.Name, c.Value, redirVidCookie, vid)
+			c.Name, c.Value, goreVidCookie, vid)
 	}
 	if c.Path != "/" {
 		t.Fatalf("cookie Path = %q, want \"/\": a cookie scoped to the "+

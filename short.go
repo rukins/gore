@@ -212,7 +212,7 @@ func (s *server) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 	if !red.Trust {
 		// Figure out if the user allow redirects always
 		allowRedir := false
-		cookie, _ := r.Cookie(redirAllowCookie)
+		cookie, _ := r.Cookie(goreAllowCookie)
 		if cookie != nil {
 			n, _ := strconv.Atoi(cookie.Value)
 			if n == 1 {
@@ -359,8 +359,8 @@ func (s *server) serveStatic(
 }
 
 const (
-	redirVidCookie   = "redir_vid"
-	redirAllowCookie = "redir_allow"
+	goreVidCookie   = "gore_vid"
+	goreAllowCookie = "gore_allow"
 )
 
 // recognizeVisitor implements a best effort visitor recording.
@@ -382,7 +382,7 @@ func (s *server) recognizeVisitor(
 	defer cancel()
 
 	var cookieVid string
-	c, err := r.Cookie(redirVidCookie)
+	c, err := r.Cookie(goreVidCookie)
 	if err != nil {
 		cookieVid = ""
 	} else {
@@ -413,7 +413,7 @@ func (s *server) recognizeVisitor(
 		// It stays a session cookie. Giving it a lifetime would change
 		// what the numbers mean, and UV counts addresses today.
 		http.SetCookie(w, &http.Cookie{
-			Name:     redirVidCookie,
+			Name:     goreVidCookie,
 			Value:    vid,
 			Path:     "/",
 			HttpOnly: true,
