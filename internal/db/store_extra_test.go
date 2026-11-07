@@ -137,12 +137,12 @@ func TestUpdateAliasErrors(t *testing.T) {
 	run(t, func(t *testing.T, s db.Store) {
 		ctx := context.Background()
 
-		if err := s.UpdateAlias(ctx, &models.Redir{
+		if err := s.UpdateAlias(ctx, &models.Link{
 			Host: khost, Alias: kalias, URL: "x",
 		}); err == nil {
 			t.Error("UpdateAlias with no ID succeeded, want an error")
 		}
-		if err := s.UpdateAlias(ctx, &models.Redir{
+		if err := s.UpdateAlias(ctx, &models.Link{
 			ID: "not-an-id", Host: khost, Alias: kalias, URL: "x",
 		}); err == nil {
 			t.Error("UpdateAlias with a malformed ID succeeded, want an error")
@@ -155,7 +155,7 @@ func TestUpdateAliasErrors(t *testing.T) {
 func TestUpdateAliasMissing(t *testing.T) {
 	run(t, func(t *testing.T, s db.Store) {
 		ctx := context.Background()
-		if err := s.UpdateAlias(ctx, &models.Redir{
+		if err := s.UpdateAlias(ctx, &models.Link{
 			ID: "999999", Host: khost, Alias: kalias, URL: "x",
 		}); err == nil {
 			t.Fatal("UpdateAlias on a missing link succeeded, want an error")
@@ -169,7 +169,7 @@ func TestUpdateAliasRejectsCollision(t *testing.T) {
 	run(t, func(t *testing.T, s db.Store) {
 		ctx := context.Background()
 
-		if err := s.StoreAlias(ctx, &models.Redir{
+		if err := s.StoreAlias(ctx, &models.Link{
 			Host: khost, Alias: "second", URL: "https://example.com",
 		}); err != nil {
 			t.Fatal(err)
@@ -179,7 +179,7 @@ func TestUpdateAliasRejectsCollision(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = s.UpdateAlias(ctx, &models.Redir{
+		err = s.UpdateAlias(ctx, &models.Link{
 			ID: r.ID, Host: khost, Alias: kalias, URL: "https://example.com",
 		})
 		if err != db.ErrAliasExists {
@@ -236,7 +236,7 @@ func TestFetchAliasAllPaging(t *testing.T) {
 		ctx := context.Background()
 
 		for _, a := range []string{"p1", "p2", "p3"} {
-			if err := s.StoreAlias(ctx, &models.Redir{
+			if err := s.StoreAlias(ctx, &models.Link{
 				Host: khost, Alias: a, URL: "https://example.com/" + a,
 			}); err != nil {
 				t.Fatal(err)
@@ -383,7 +383,7 @@ func TestZeroValidFromIsPreserved(t *testing.T) {
 	run(t, func(t *testing.T, s db.Store) {
 		ctx := context.Background()
 
-		if err := s.StoreAlias(ctx, &models.Redir{
+		if err := s.StoreAlias(ctx, &models.Link{
 			Host: khost, Alias: "no-valid-from", URL: "https://example.com",
 		}); err != nil {
 			t.Fatal(err)
@@ -441,7 +441,7 @@ func TestDeleteAliasKeepsVisits(t *testing.T) {
 			t.Fatalf("StatVisit returned %+v for a deleted link, want none", rs)
 		}
 
-		if err := s.StoreAlias(ctx, &models.Redir{
+		if err := s.StoreAlias(ctx, &models.Link{
 			Host: khost, Alias: kalias, URL: "https://example.com",
 		}); err != nil {
 			t.Fatal(err)
@@ -464,7 +464,7 @@ func TestStatsAcrossHostsDoNotMix(t *testing.T) {
 		now := time.Now().UTC()
 		const other = "other.example"
 
-		if err := s.StoreAlias(ctx, &models.Redir{
+		if err := s.StoreAlias(ctx, &models.Link{
 			Host: other, Alias: kalias, URL: "https://example.com",
 		}); err != nil {
 			t.Fatal(err)
@@ -553,7 +553,7 @@ func TestCancelledContextIsAnError(t *testing.T) {
 				return err
 			},
 			"StoreAlias": func() error {
-				return s.StoreAlias(ctx, &models.Redir{
+				return s.StoreAlias(ctx, &models.Link{
 					Host: khost, Alias: "cancelled", URL: "https://example.com",
 				})
 			},

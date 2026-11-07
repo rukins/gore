@@ -24,13 +24,13 @@ type listingStore struct {
 
 func (s *listingStore) FetchAliasAll(
 	_ context.Context, _ string, public bool, _, _ int64,
-) ([]models.RedirIndex, int64, error) {
-	r := models.RedirIndex{Alias: "blog", URL: "https://blog.example", PV: 9, UV: 4}
+) ([]models.LinkIndex, int64, error) {
+	r := models.LinkIndex{Alias: "blog", URL: "https://blog.example", PV: 9, UV: 4}
 	if public {
 		r.URL = ""
 		r.PV, r.UV = 0, 0
 	}
-	return []models.RedirIndex{r}, 1, nil
+	return []models.LinkIndex{r}, 1, nil
 }
 
 func (s *listingStore) StatDaily(

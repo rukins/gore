@@ -103,7 +103,7 @@ func openURI(ctx context.Context, t testing.TB, uri string) db.Store {
 	}
 	reset(ctx, t, uri)
 
-	err = s.StoreAlias(ctx, &models.Redir{
+	err = s.StoreAlias(ctx, &models.Link{
 		Host:    khost,
 		Alias:   kalias,
 		URL:     "link",
@@ -206,7 +206,7 @@ func run(t *testing.T, fn func(t *testing.T, s db.Store)) {
 func TestStoreAliasRejectsDuplicate(t *testing.T) {
 	run(t, func(t *testing.T, s db.Store) {
 		ctx := context.Background()
-		err := s.StoreAlias(ctx, &models.Redir{
+		err := s.StoreAlias(ctx, &models.Link{
 			Host: khost, Alias: kalias, URL: "other",
 		})
 		if err == nil {
@@ -238,7 +238,7 @@ func TestUpdateAlias(t *testing.T) {
 			t.Fatalf("FetchAlias failed with err: %v", err)
 		}
 
-		err = s.UpdateAlias(ctx, &models.Redir{
+		err = s.UpdateAlias(ctx, &models.Link{
 			ID: r.ID, Host: khost, Alias: kalias, URL: want,
 		})
 		if err != nil {
@@ -424,7 +424,7 @@ func TestHostsAreSeparate(t *testing.T) {
 		ctx := context.Background()
 		const other = "other.example"
 
-		if err := s.StoreAlias(ctx, &models.Redir{
+		if err := s.StoreAlias(ctx, &models.Link{
 			Host: other, Alias: kalias, URL: "elsewhere",
 		}); err != nil {
 			t.Fatalf("the same alias on another host was rejected: %v", err)
@@ -616,7 +616,7 @@ func TestHistBucketsAreUTC(t *testing.T) {
 	defer s.Close()
 	reset(ctx, t, uri)
 
-	if err := s.StoreAlias(ctx, &models.Redir{
+	if err := s.StoreAlias(ctx, &models.Link{
 		Host: khost, Alias: kalias, URL: "link",
 	}); err != nil {
 		t.Fatal(err)

@@ -111,12 +111,12 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var redir models.Redir
-	err = json.Unmarshal(b, &redir)
+	var link models.Link
+	err = json.Unmarshal(b, &link)
 	if err != nil {
 		return
 	}
-	redir.UpdatedBy = user
+	link.UpdatedBy = user
 
 	// The console sends the whole record, because its form is populated
 	// from the stored one and submits every field. Nothing is left for
@@ -124,7 +124,7 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 	all := short.Given{URL: true, Private: true, Trust: true, ValidFrom: true}
 
 	// Edit redirect data.
-	err = short.Edit(r.Context(), s.db, short.Op(red.Op), red.Alias, &redir, all)
+	err = short.Edit(r.Context(), s.db, short.Op(red.Op), red.Alias, &link, all)
 	if err == nil {
 		// Flush the cache so that the changes can be effected immediately.
 		s.cache.Flush()
@@ -424,7 +424,7 @@ func (s *server) recognizeVisitor(
 }
 
 // checkdb checks whether the given alias is exsited in the gore database
-func (s *server) checkdb(ctx context.Context, host, alias string) (*models.Redir, error) {
+func (s *server) checkdb(ctx context.Context, host, alias string) (*models.Link, error) {
 	a, err := s.db.FetchAlias(ctx, host, alias)
 	if err != nil {
 		return nil, err
@@ -434,7 +434,7 @@ func (s *server) checkdb(ctx context.Context, host, alias string) (*models.Redir
 
 // checkvcs checks whether the given alias is an repository on VCS, if so,
 // then creates a new alias and returns url of the vcs repository.
-func (s *server) checkvcs(ctx context.Context, site config.Site, alias string) (*models.Redir, error) {
+func (s *server) checkvcs(ctx context.Context, site config.Site, alias string) (*models.Link, error) {
 	host := site.Host
 
 	// The organisation probed is the one belonging to the site the
@@ -460,7 +460,7 @@ func (s *server) checkvcs(ctx context.Context, site config.Site, alias string) (
 	}
 
 	// store such a try path
-	r := &models.Redir{
+	r := &models.Link{
 		Host:      host,
 		Alias:     alias,
 		URL:       tryPath,
@@ -560,10 +560,10 @@ func (s *server) sIndex(
 // indexOutput is the link listing. Series carries one entry per alias on
 // the page, and is absent from the public listing, which draws none.
 type indexOutput struct {
-	Data   []models.RedirIndex `json:"data"`
-	Page   int64               `json:"page"`
-	Total  int64               `json:"total"`
-	Series map[string][]int64  `json:"series,omitempty"`
+	Data   []models.LinkIndex `json:"data"`
+	Page   int64              `json:"page"`
+	Total  int64              `json:"total"`
+	Series map[string][]int64 `json:"series,omitempty"`
 }
 
 // index on all aliases, require admin access.

@@ -75,7 +75,7 @@ func key(host, alias string) string {
 // Get returns the cached redirect for an alias on a host and promotes it
 // to the front. The promotion writes to the list, so this takes the write
 // lock.
-func (l *LRU) Get(host, alias string) (*models.Redir, bool) {
+func (l *LRU) Get(host, alias string) (*models.Link, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -83,13 +83,13 @@ func (l *LRU) Get(host, alias string) (*models.Redir, bool) {
 	for e := l.elems.Front(); e != nil; e = e.Next() {
 		if e.Value.(*item).k == k {
 			l.elems.MoveToFront(e)
-			return e.Value.(*item).v.(*models.Redir), true
+			return e.Value.(*item).v.(*models.Link), true
 		}
 	}
 	return nil, false
 }
 
-func (l *LRU) Put(host, alias string, v *models.Redir) {
+func (l *LRU) Put(host, alias string, v *models.Link) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

@@ -105,7 +105,7 @@ func TestStatDailyIsOneQueryForManyAliases(t *testing.T) {
 
 		// A second link with traffic of its own, and a third with none.
 		for _, a := range []string{"second", "silent"} {
-			if err := s.StoreAlias(ctx, &models.Redir{
+			if err := s.StoreAlias(ctx, &models.Link{
 				Host: khost, Alias: a, URL: "https://example.com/" + a,
 			}); err != nil {
 				t.Fatal(err)

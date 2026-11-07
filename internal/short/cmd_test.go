@@ -14,22 +14,22 @@ import (
 // started as.
 type fakeStore struct {
 	db.Store
-	stored  *models.Redir
-	updated *models.Redir
+	stored  *models.Link
+	updated *models.Link
 }
 
-func (s *fakeStore) FetchAlias(context.Context, string, string) (*models.Redir, error) {
+func (s *fakeStore) FetchAlias(context.Context, string, string) (*models.Link, error) {
 	c := *s.stored
 	return &c, nil
 }
 
-func (s *fakeStore) UpdateAlias(_ context.Context, r *models.Redir) error {
+func (s *fakeStore) UpdateAlias(_ context.Context, r *models.Link) error {
 	c := *r
 	s.updated = &c
 	return nil
 }
 
-func (s *fakeStore) StoreAlias(_ context.Context, r *models.Redir) error {
+func (s *fakeStore) StoreAlias(_ context.Context, r *models.Link) error {
 	c := *r
 	s.updated = &c
 	return nil
@@ -44,14 +44,14 @@ func (s *fakeStore) StoreAlias(_ context.Context, r *models.Redir) error {
 // and a trusted link warn before redirecting. Nothing said so.
 func TestUpdateKeepsUnmentionedFields(t *testing.T) {
 	held := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
-	s := &fakeStore{stored: &models.Redir{
+	s := &fakeStore{stored: &models.Link{
 		ID: "1", Alias: "x", URL: "https://old.example",
 		Private: true, Trust: true, ValidFrom: held,
 	}}
 
 	// Only the URL is given, as `-op update -a x -l ...` supplies.
 	err := short.Edit(context.Background(), s, short.OpUpdate, "x",
-		&models.Redir{Alias: "x", URL: "https://new.example"},
+		&models.Link{Alias: "x", URL: "https://new.example"},
 		short.Given{URL: true})
 	if err != nil {
 		t.Fatal(err)
@@ -74,13 +74,13 @@ func TestUpdateKeepsUnmentionedFields(t *testing.T) {
 // TestUpdateAppliesWhatIsGiven checks the other direction: a field that
 // was named takes effect, including when its value is the zero one.
 func TestUpdateAppliesWhatIsGiven(t *testing.T) {
-	s := &fakeStore{stored: &models.Redir{
+	s := &fakeStore{stored: &models.Link{
 		ID: "1", Alias: "x", URL: "https://old.example",
 		Private: true, Trust: true,
 	}}
 
 	err := short.Edit(context.Background(), s, short.OpUpdate, "x",
-		&models.Redir{Alias: "x", Private: false, Trust: false},
+		&models.Link{Alias: "x", Private: false, Trust: false},
 		short.Given{Private: true, Trust: true})
 	if err != nil {
 		t.Fatal(err)

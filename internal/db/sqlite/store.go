@@ -26,7 +26,7 @@ func (db *store) Close() error { return db.db.Close() }
 // idAttempts is how many times an insert retries a primary-key collision.
 const idAttempts = 8
 
-func (db *store) StoreAlias(ctx context.Context, r *models.Redir) error {
+func (db *store) StoreAlias(ctx context.Context, r *models.Link) error {
 	// valid_from is stored as given, including the zero value. short.go
 	// treats a zero time as "valid since always".
 	now := micros(time.Now().UTC())
@@ -56,7 +56,7 @@ func (db *store) StoreAlias(ctx context.Context, r *models.Redir) error {
 	return fmt.Errorf("failed to insert given redirect: %w", err)
 }
 
-func (db *store) UpdateAlias(ctx context.Context, r *models.Redir) error {
+func (db *store) UpdateAlias(ctx context.Context, r *models.Link) error {
 	if r.ID == "" {
 		return errors.New("missing document ID")
 	}
@@ -98,9 +98,9 @@ func (db *store) DeleteAlias(ctx context.Context, host, alias string) error {
 	return nil
 }
 
-func (db *store) FetchAlias(ctx context.Context, host, alias string) (*models.Redir, error) {
+func (db *store) FetchAlias(ctx context.Context, host, alias string) (*models.Link, error) {
 	var (
-		r                           models.Redir
+		r                           models.Link
 		id                          int64
 		validFrom, created, updated int64
 	)
@@ -125,7 +125,7 @@ func (db *store) FetchAliasAll(
 	host string,
 	public bool,
 	pageSize, pageNum int64,
-) ([]models.RedirIndex, int64, error) {
+) ([]models.LinkIndex, int64, error) {
 	offset := (pageNum - 1) * pageSize
 
 	var total int64
@@ -167,10 +167,10 @@ func (db *store) FetchAliasAll(
 	}
 	defer rows.Close()
 
-	var rs []models.RedirIndex
+	var rs []models.LinkIndex
 	for rows.Next() {
 		var (
-			r                           models.RedirIndex
+			r                           models.LinkIndex
 			id                          int64
 			validFrom, created, updated int64
 		)

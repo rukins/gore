@@ -17,10 +17,10 @@ import (
 type recordingStore struct {
 	db.Store
 	mu    sync.Mutex
-	saved []*models.Redir
+	saved []*models.Link
 }
 
-func (s *recordingStore) StoreAlias(_ context.Context, r *models.Redir) error {
+func (s *recordingStore) StoreAlias(_ context.Context, r *models.Link) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := *r

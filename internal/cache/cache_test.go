@@ -25,7 +25,7 @@ func TestLRU(t *testing.T) {
 		t.Fatalf("wrong size, want 0, got %v", l.Len())
 	}
 
-	r := &models.Redir{
+	r := &models.Link{
 		Alias:     "a",
 		URL:       "1",
 		Private:   false,
@@ -40,7 +40,7 @@ func TestLRU(t *testing.T) {
 		t.Fatalf("wrong size, want 1, got %v", l.Len())
 	}
 
-	l.Put(host, "b", &models.Redir{
+	l.Put(host, "b", &models.Link{
 		Alias:     "b",
 		URL:       "2",
 		Private:   false,
@@ -57,7 +57,7 @@ func TestLRU(t *testing.T) {
 		t.Fatalf("wrong size, want 2, got %v", l.Len())
 	}
 
-	r = &models.Redir{
+	r = &models.Link{
 		Alias:     "c",
 		URL:       "3",
 		Private:   false,
@@ -85,25 +85,25 @@ func TestLRU(t *testing.T) {
 	}
 
 	tt := time.Now().UTC()
-	l.Put(host, "a", &models.Redir{
+	l.Put(host, "a", &models.Link{
 		Alias:     "a",
 		URL:       "1",
 		Private:   false,
 		ValidFrom: tt,
 	})
-	l.Put(host, "b", &models.Redir{
+	l.Put(host, "b", &models.Link{
 		Alias:     "b",
 		URL:       "2",
 		Private:   false,
 		ValidFrom: tt,
 	})
-	l.Put(host, "c", &models.Redir{
+	l.Put(host, "c", &models.Link{
 		Alias:     "c",
 		URL:       "3",
 		Private:   false,
 		ValidFrom: tt,
 	})
-	rr := &models.Redir{
+	rr := &models.Link{
 		Alias:     "a",
 		URL:       "2",
 		Private:   false,
@@ -134,7 +134,7 @@ func rands() string {
 func BenchmarkLRU(b *testing.B) {
 	l := NewLRU(false)
 
-	r := &models.Redir{
+	r := &models.Link{
 		Alias:     "a",
 		URL:       "1",
 		Private:   false,
@@ -152,7 +152,7 @@ func BenchmarkLRU(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			// each goroutine put its own k/v
 			k := rands()
-			v := &models.Redir{
+			v := &models.Link{
 				Alias:     k,
 				URL:       rands(),
 				Private:   false,
@@ -170,7 +170,7 @@ func BenchmarkLRU(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				k := rands()
-				v := &models.Redir{
+				v := &models.Link{
 					Alias:     k,
 					URL:       rands(),
 					Private:   false,
@@ -191,7 +191,7 @@ func TestLRUFlush(t *testing.T) {
 	l := NewLRU(false)
 	keys := []string{"a", "b", "c"}
 	for _, k := range keys {
-		l.Put(host, k, &models.Redir{Alias: k, ValidFrom: time.Now()})
+		l.Put(host, k, &models.Link{Alias: k, ValidFrom: time.Now()})
 	}
 
 	l.Flush()
@@ -214,7 +214,7 @@ func TestLRUFlush(t *testing.T) {
 func TestLRUGetConcurrent(t *testing.T) {
 	l := NewLRU(false)
 	for _, k := range []string{"a", "b"} {
-		l.Put(host, k, &models.Redir{Alias: k, ValidFrom: time.Now()})
+		l.Put(host, k, &models.Link{Alias: k, ValidFrom: time.Now()})
 	}
 
 	var wg sync.WaitGroup
@@ -241,7 +241,7 @@ func TestLRUGetConcurrent(t *testing.T) {
 func TestHostsDoNotShareEntries(t *testing.T) {
 	l := NewLRU(true)
 
-	l.Put("example.com", "s", &models.Redir{
+	l.Put("example.com", "s", &models.Link{
 		Host: "example.com", Alias: "s", URL: "https://example.com/target",
 	})
 
@@ -249,7 +249,7 @@ func TestHostsDoNotShareEntries(t *testing.T) {
 		t.Fatal("examplepkg.com/s/s hit the cache entry for example.com")
 	}
 
-	l.Put("examplepkg.com", "s", &models.Redir{
+	l.Put("examplepkg.com", "s", &models.Link{
 		Host: "examplepkg.com", Alias: "s", URL: "https://examplepkg.com/target",
 	})
 

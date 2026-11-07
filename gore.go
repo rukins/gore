@@ -213,7 +213,7 @@ func runCmd() {
 		// A boolean flag left out is false, which used to be read as
 		// "make this public" rather than as silence, so changing a
 		// link's URL also unset its visibility and its trust.
-		err = short.Cmd(ctx, short.Op(*operate), &models.Redir{
+		err = short.Cmd(ctx, short.Op(*operate), &models.Link{
 			Alias:     *alias,
 			URL:       *link,
 			Private:   *private,

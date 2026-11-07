@@ -33,16 +33,16 @@ type Store interface {
 
 	// StoreAlias stores r if (r.Host, r.Alias) is free, and reports an
 	// error if it is taken.
-	StoreAlias(ctx context.Context, r *models.Redir) error
+	StoreAlias(ctx context.Context, r *models.Link) error
 	// UpdateAlias updates the link identified by r.ID.
-	UpdateAlias(ctx context.Context, r *models.Redir) error
+	UpdateAlias(ctx context.Context, r *models.Link) error
 	// DeleteAlias removes a link. Its visits are kept: they happened.
 	DeleteAlias(ctx context.Context, host, alias string) error
 	// FetchAlias returns one link.
-	FetchAlias(ctx context.Context, host, alias string) (*models.Redir, error)
+	FetchAlias(ctx context.Context, host, alias string) (*models.Link, error)
 	// FetchAliasAll returns a page of links and the total count. The
 	// public form omits the target URL and the visit counts.
-	FetchAliasAll(ctx context.Context, host string, public bool, pageSize, pageNum int64) ([]models.RedirIndex, int64, error)
+	FetchAliasAll(ctx context.Context, host string, public bool, pageSize, pageNum int64) ([]models.LinkIndex, int64, error)
 
 	// RecordVisit records one visit and returns the visitor id to set as
 	// a cookie.

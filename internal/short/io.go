@@ -13,7 +13,7 @@ import (
 )
 
 type iofmt struct {
-	Short []models.RedirIndex `yaml:"short"`
+	Short []models.LinkIndex `yaml:"short"`
 }
 
 // ImportFile parses and imports the given file into the gore database.
@@ -32,7 +32,7 @@ func ImportFile(fname string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for _, info := range d.Short {
-		r := &models.Redir{
+		r := &models.Link{
 			Alias:   info.Alias,
 			URL:     info.URL,
 			Private: info.Private,

@@ -4,9 +4,8 @@ import (
 	"time"
 )
 
-// Redir is the core redirect model, it records a kind of alias
-// and its correlated link.
-type Redir struct {
+// Link is one short link: a host, an alias, and the URL it points at.
+type Link struct {
 	ID        string    `json:"-"          yaml:"-"`
 	Host      string    `json:"-"          yaml:"host"`
 	Alias     string    `json:"alias"      yaml:"alias"`
@@ -20,9 +19,9 @@ type Redir struct {
 	UpdatedAt time.Time `json:"-" yaml:"updated_at"`
 }
 
-// RedirIndex is an extension to Redir, which offers more statistic
-// information such as PV/UV.
-type RedirIndex struct {
+// LinkIndex is a link plus its visit counts. PV is the number of
+// visits and UV is the number of distinct addresses.
+type LinkIndex struct {
 	ID        string    `json:"-"          yaml:"-"`
 	Host      string    `json:"-"          yaml:"host"`
 	Alias     string    `json:"alias"      yaml:"alias"`

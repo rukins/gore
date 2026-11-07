@@ -33,7 +33,7 @@ type Given struct {
 }
 
 // Cmd processes the given alias and link with a specified op.
-func Cmd(ctx context.Context, operate Op, r *models.Redir, given Given) (err error) {
+func Cmd(ctx context.Context, operate Op, r *models.Link, given Given) (err error) {
 	s, err := db.NewStore(ctx, config.Conf.Store)
 	if err != nil {
 		err = fmt.Errorf("cannot create a new alias: %w", err)
@@ -55,7 +55,7 @@ func Cmd(ctx context.Context, operate Op, r *models.Redir, given Given) (err err
 // if the operation is create, then the alias is not necessary.
 // if the operation is update/fetch/delete, then the alias is used to
 // match the existing aliases, meaning that alias can be changed.
-func Edit(ctx context.Context, s db.Store, operate Op, a string, r *models.Redir, given Given) (err error) {
+func Edit(ctx context.Context, s db.Store, operate Op, a string, r *models.Link, given Given) (err error) {
 	// Links are keyed by (host, alias). An admin command carries no
 	// request to read the host from, so it acts on the configured one.
 	if r.Host == "" {
@@ -79,7 +79,7 @@ func Edit(ctx context.Context, s db.Store, operate Op, a string, r *models.Redir
 		prefix := config.Conf.S.Prefix
 		log.Printf("%s%s%s\n", config.Conf.Host, prefix, r.Alias)
 	case OpUpdate:
-		var rr *models.Redir
+		var rr *models.Link
 
 		// fetch the old values if possible, we don't care
 		// if here returns an error.
@@ -125,7 +125,7 @@ func Edit(ctx context.Context, s db.Store, operate Op, a string, r *models.Redir
 		}
 		log.Printf("alias %v has been deleted.\n", a)
 	case OpFetch:
-		var r *models.Redir
+		var r *models.Link
 		r, err = s.FetchAlias(ctx, host, a)
 		if err != nil {
 			return
