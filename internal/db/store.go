@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db
 
 import (
@@ -11,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/models"
 )
 
-// Store is the persistence redir runs on.
+// Store is the persistence gore runs on.
 //
 // It has one implementation, over PostgreSQL. The interface stays because
 // it is the seam the handler tests substitute, so recording a visit and

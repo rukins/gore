@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package short
 
 import (
@@ -10,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,7 +16,7 @@ type iofmt struct {
 	Short []models.RedirIndex `yaml:"short"`
 }
 
-// ImportFile parses and imports the given file into redir database.
+// ImportFile parses and imports the given file into the gore database.
 func ImportFile(fname string) {
 	b, err := os.ReadFile(fname)
 	if err != nil {
@@ -60,7 +56,7 @@ func ImportFile(fname string) {
 	}
 }
 
-// DumpFile dumps the redir data into a given file in YAML format.
+// DumpFile dumps the gore data into a given file in YAML format.
 func DumpFile(fname string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()

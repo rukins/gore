@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db_test
 
 import (
@@ -9,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
 )
 
 // seedMixed records a known mix of human and crawler traffic and returns the

@@ -1,13 +1,9 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package models_test
 
 import (
 	"testing"
 
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/models"
 )
 
 // TestDeriveBot covers the reason the derived columns exist: the dashboard
@@ -73,7 +69,7 @@ func TestDeriveRefererHost(t *testing.T) {
 	for _, tt := range []struct{ in, want string }{
 		{"https://News.YCombinator.com/item?id=1", "news.ycombinator.com"},
 		{"https://news.ycombinator.com/item?id=2", "news.ycombinator.com"},
-		{"https://golang.design:8080/s/x", "golang.design"},
+		{"https://examplepkg.com:8080/s/x", "examplepkg.com"},
 		{"", ""},
 		{"not a url", ""},
 	} {

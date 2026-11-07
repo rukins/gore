@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db
 
 import (
@@ -22,9 +18,9 @@ import (
 var migrationFS embed.FS
 
 // migrateLockKey is an arbitrary but fixed key for the advisory lock that
-// serialises migration across instances. Two redir processes starting at
+// serialises migration across instances. Two gore processes starting at
 // the same time must not both apply the same file.
-const migrateLockKey int64 = 0x7265646972 // "redir"
+const migrateLockKey int64 = 0x7265646972 // historical lock id; do not change
 
 // parseMigrationName splits a file name into its version and label. A
 // name that does not parse is an error rather than a file to skip: a
@@ -90,7 +86,7 @@ func loadMigrations() ([]migration, error) {
 // migrate applies every migration the database has not seen yet.
 //
 // The schema cannot come from the postgres image's docker-entrypoint-initdb.d
-// hook: that runs only against an empty PGDATA, and redir shares an instance
+// hook: that runs only against an empty PGDATA, and gore shares an instance
 // that was initialised long ago by another service. Files placed there would
 // be a silent no-op, so the server applies its own schema instead.
 //

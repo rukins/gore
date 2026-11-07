@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db_test
 
 import (
@@ -10,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
 	"github.com/jackc/pgx/v5"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
 )
 
 // TestNewStoreScheme covers the rollback switch. The scheme in the store
@@ -544,7 +540,7 @@ func TestCancelledContextIsAnError(t *testing.T) {
 
 // TestRedactedURIReachesTheUsageText guards the command's help output,
 // which prints the configured store address. Without redaction anyone
-// running `redir -h` on the deploy host sees the database password.
+// running `gore -h` on the deploy host sees the database password.
 func TestRedactedURIReachesTheUsageText(t *testing.T) {
 	const uri = "postgres://redir:s3cret@postgres:5432/redir?sslmode=disable"
 	got := db.Redact(uri)

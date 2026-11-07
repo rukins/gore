@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -12,9 +8,9 @@ import (
 	"sync"
 	"testing"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
 )
 
 // recordingStore captures the links checkvcs creates.
@@ -38,7 +34,7 @@ func (s *recordingStore) StoreAlias(_ context.Context, r *models.Redir) error {
 // checkvcs runs when /s/<alias> finds no link. It requests
 // repo_path + "/" + alias and, on 200, creates a link row. If the repo
 // path came from the process rather than from the site the request
-// arrived on, a miss on golang.design would probe changkun's organisation
+// arrived on, a miss on examplepkg.com would probe the primary site's organisation
 // and could mint a link pointing at the wrong owner's repository.
 func TestCheckVCSProbesTheSiteOrganisation(t *testing.T) {
 	var (
@@ -56,10 +52,10 @@ func TestCheckVCSProbesTheSiteOrganisation(t *testing.T) {
 
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
-	config.Conf.Host = "https://changkun.de"
-	config.Conf.X.RepoPath = vcs.URL + "/changkun"
+	config.Conf.Host = "https://example.com"
+	config.Conf.X.RepoPath = vcs.URL + "/rukins"
 	config.Conf.Hosts = map[string]config.SiteOverride{
-		"golang.design": {RepoPath: vcs.URL + "/golang-design"},
+		"examplepkg.com": {RepoPath: vcs.URL + "/examplepkg"},
 	}
 
 	store := &recordingStore{}
@@ -70,11 +66,11 @@ func TestCheckVCSProbesTheSiteOrganisation(t *testing.T) {
 		wantPath    string
 		wantHost    string
 	}{
-		{"changkun.de", "/changkun/thing", "changkun.de"},
-		{"golang.design", "/golang-design/thing", "golang.design"},
+		{"example.com", "/rukins/thing", "example.com"},
+		{"examplepkg.com", "/examplepkg/thing", "examplepkg.com"},
 		// A Host header naming no configured site falls back to the
 		// primary one rather than opening a namespace of its own.
-		{"evil.example", "/changkun/thing", "changkun.de"},
+		{"evil.example", "/rukins/thing", "example.com"},
 	} {
 		t.Run(tt.requestHost, func(t *testing.T) {
 			mu.Lock()
@@ -114,26 +110,26 @@ func TestCheckVCSProbesTheSiteOrganisation(t *testing.T) {
 func TestXHandlerUsesTheSiteRepository(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
-	config.Conf.Host = "https://changkun.de"
+	config.Conf.Host = "https://example.com"
 	config.Conf.X.Enable = true
 	config.Conf.X.Prefix = "/x/"
 	config.Conf.X.VCS = "git"
-	config.Conf.X.RepoPath = "https://github.com/changkun"
+	config.Conf.X.RepoPath = "https://github.com/rukins"
 	config.Conf.X.GoDocHost = "https://pkg.go.dev/"
 	config.Conf.Hosts = map[string]config.SiteOverride{
-		"golang.design": {RepoPath: "https://github.com/golang-design"},
+		"examplepkg.com": {RepoPath: "https://github.com/examplepkg"},
 	}
 
 	s := &server{}
 	h := s.xHandler()
 
 	for _, tt := range []struct{ host, want string }{
-		{"changkun.de", "changkun.de/x/redir git https://github.com/changkun/redir"},
-		{"golang.design", "golang.design/x/lockfree git https://github.com/golang-design/lockfree"},
+		{"example.com", "example.com/x/gore git https://github.com/rukins/gore"},
+		{"examplepkg.com", "examplepkg.com/x/lockfree git https://github.com/examplepkg/lockfree"},
 	} {
 		t.Run(tt.host, func(t *testing.T) {
-			alias := "redir"
-			if tt.host == "golang.design" {
+			alias := "gore"
+			if tt.host == "examplepkg.com" {
 				alias = "lockfree"
 			}
 			r := httptest.NewRequest(http.MethodGet, "/x/"+alias, nil)
@@ -168,15 +164,15 @@ func indexOf(h, n string) int {
 // follow a process onto another domain.
 //
 // An impressum is a statement of who operates a site, and a privacy
-// policy names the party responsible for the data. Serving changkun.de's
-// under golang.design published one operator's name and postal address on
+// policy names the party responsible for the data. Serving example.com's
+// under examplepkg.com published one operator's name and postal address on
 // another's domain. Suppressing the links was not enough: the routes
 // themselves answered.
 func TestLegalPagesBelongToTheirSite(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
 
-	config.Conf.Host = "https://changkun.de"
+	config.Conf.Host = "https://example.com"
 	config.Conf.GDPR.Impressum.Enable = true
 	config.Conf.GDPR.Impressum.Content = "<p>Operator, Some Street</p>"
 	config.Conf.GDPR.Privacy.Enable = true
@@ -184,8 +180,8 @@ func TestLegalPagesBelongToTheirSite(t *testing.T) {
 	config.Conf.GDPR.Contact.Enable = true
 	config.Conf.GDPR.Contact.Email = "hi@example.test"
 	config.Conf.Hosts = map[string]config.SiteOverride{
-		"golang.design": {Legal: false},
-		"changkun.us":   {Legal: true},
+		"examplepkg.com": {Legal: false},
+		"rukins.dev":     {Legal: true},
 	}
 
 	s := &server{}
@@ -194,9 +190,9 @@ func TestLegalPagesBelongToTheirSite(t *testing.T) {
 			host  string
 			serve bool
 		}{
-			{"changkun.de", true},
-			{"changkun.us", true},    // same operator, opted in
-			{"golang.design", false}, // different site
+			{"example.com", true},
+			{"rukins.dev", true},      // same operator, opted in
+			{"examplepkg.com", false}, // different site
 		} {
 			t.Run(tt.host+page, func(t *testing.T) {
 				w := httptest.NewRecorder()
@@ -231,7 +227,7 @@ func TestLegalPagesBelongToTheirSite(t *testing.T) {
 func TestServedPagesUseTheSharedLayout(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
-	config.Conf.Host = "https://changkun.de"
+	config.Conf.Host = "https://example.com"
 	config.Conf.S.Prefix = "/s/"
 	config.Conf.GDPR.Impressum.Enable = true
 	config.Conf.GDPR.Impressum.Content = "<h1>Impressum</h1>"
@@ -244,7 +240,7 @@ func TestServedPagesUseTheSharedLayout(t *testing.T) {
 	for _, page := range []string{".impressum", ".privacy", ".contact"} {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/s/"+page, nil)
-		r.Host = "changkun.de"
+		r.Host = "example.com"
 		if err := s.serveStatic(context.Background(), w, r, "/s/"); err != nil {
 			t.Fatal(err)
 		}
@@ -253,7 +249,7 @@ func TestServedPagesUseTheSharedLayout(t *testing.T) {
 		for _, want := range []string{
 			"--page: #f9f9f7", // the shared design's ground, with a dark one beside it
 			"prefers-color-scheme: dark",
-			"changkun.de", // the site names itself
+			"example.com", // the site names itself
 			`class="foot"`,
 		} {
 			if !contains(body, want) {
@@ -273,23 +269,23 @@ func TestWarnPageNamesItsTarget(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
 	config.Conf.S.Prefix = "/s/"
-	config.Conf.GDPR.Owner.Name = "changkun.de"
+	config.Conf.GDPR.Owner.Name = "example.com"
 
 	var buf bytes.Buffer
 	err := warnTmpl.ExecuteTemplate(&buf, "layout", &pageInfo{
-		Site:      "changkun.de",
+		Site:      "example.com",
 		Prefix:    "/s/",
-		OwnerName: "changkun.de",
-		URL:       "https://example.com/somewhere",
+		OwnerName: "example.com",
+		URL:       "https://elsewhere.test/somewhere",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	body := buf.String()
-	if !contains(body, "https://example.com/somewhere") {
+	if !contains(body, "https://elsewhere.test/somewhere") {
 		t.Fatal("the warning does not name the target")
 	}
-	if !contains(body, "changkun.de") {
+	if !contains(body, "example.com") {
 		t.Error("the warning does not name the site being left")
 	}
 }

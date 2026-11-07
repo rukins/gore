@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package utils_test
 
 import (
@@ -13,8 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/utils"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/utils"
 )
 
 // req builds a request with the given headers and remote address.
@@ -155,7 +151,7 @@ func TestReadIPHiddenIsKeyed(t *testing.T) {
 // keyed reproduces the digest independently of the implementation.
 func keyed(t *testing.T, ip string) string {
 	t.Helper()
-	mac := hmac.New(sha256.New, []byte(os.Getenv("REDIR_IP_HASH_KEY")))
+	mac := hmac.New(sha256.New, []byte(os.Getenv("GORE_IP_HASH_KEY")))
 	mac.Write([]byte(ip))
 	return hex.EncodeToString(mac.Sum(nil))
 }
@@ -192,13 +188,13 @@ func TestReadIPHiddenCoversUnknown(t *testing.T) {
 // TestReadIPTrustsItsProxy documents an assumption rather than a
 // behaviour worth having.
 //
-// X-Forwarded-For is set by the client, and redir takes it over the
+// X-Forwarded-For is set by the client, and gore takes it over the
 // address it is actually talking to. Behind a reverse proxy that
 // overwrites the header, that is right and necessary. Exposed directly,
 // it means anyone can choose what gets recorded as their address, and so
 // can inflate or split the unique-visitor count at will.
 //
-// redir is deployed behind traefik, which sets the header, so this holds
+// gore is deployed behind traefik, which sets the header, so this holds
 // there. The test exists so the assumption is written down where someone
 // changing the deployment will see it.
 func TestReadIPTrustsItsProxy(t *testing.T) {
@@ -217,7 +213,7 @@ func TestReadIPTrustsItsProxy(t *testing.T) {
 // through the environment, and refuses to start with hide_ip set and no
 // key rather than hashing with nothing.
 func TestMain(m *testing.M) {
-	os.Setenv("REDIR_IP_HASH_KEY", "test-key-not-a-real-secret")
+	os.Setenv("GORE_IP_HASH_KEY", "test-key-not-a-real-secret")
 	os.Exit(m.Run())
 }
 

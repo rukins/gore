@@ -1,14 +1,10 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package models
 
 import (
 	"time"
 )
 
-// Redir is the core redir model, it records a kind of alias
+// Redir is the core redirect model, it records a kind of alias
 // and its correlated link.
 type Redir struct {
 	ID        string    `json:"-"          yaml:"-"`

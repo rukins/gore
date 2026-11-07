@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package cache
 
 import (
@@ -11,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/models"
 )
 
 // host is the site every entry in these tests belongs to, except where
 // a test deliberately uses a second one.
-const host = "changkun.de"
+const host = "example.com"
 
 func TestLRU(t *testing.T) {
 	l := NewLRU(false)
@@ -245,21 +241,21 @@ func TestLRUGetConcurrent(t *testing.T) {
 func TestHostsDoNotShareEntries(t *testing.T) {
 	l := NewLRU(true)
 
-	l.Put("changkun.de", "s", &models.Redir{
-		Host: "changkun.de", Alias: "s", URL: "https://changkun.de/target",
+	l.Put("example.com", "s", &models.Redir{
+		Host: "example.com", Alias: "s", URL: "https://example.com/target",
 	})
 
-	if _, ok := l.Get("golang.design", "s"); ok {
-		t.Fatal("golang.design/s/s hit the cache entry for changkun.de")
+	if _, ok := l.Get("examplepkg.com", "s"); ok {
+		t.Fatal("examplepkg.com/s/s hit the cache entry for example.com")
 	}
 
-	l.Put("golang.design", "s", &models.Redir{
-		Host: "golang.design", Alias: "s", URL: "https://golang.design/target",
+	l.Put("examplepkg.com", "s", &models.Redir{
+		Host: "examplepkg.com", Alias: "s", URL: "https://examplepkg.com/target",
 	})
 
 	for _, tt := range []struct{ host, want string }{
-		{"changkun.de", "https://changkun.de/target"},
-		{"golang.design", "https://golang.design/target"},
+		{"example.com", "https://example.com/target"},
+		{"examplepkg.com", "https://examplepkg.com/target"},
 	} {
 		v, ok := l.Get(tt.host, "s")
 		if !ok {
@@ -281,7 +277,7 @@ func TestKeyIsUnambiguous(t *testing.T) {
 	if key("a", "b/c") == key("a/b", "c") {
 		t.Fatal("key collides when the separator appears in a component")
 	}
-	if key("changkun.de", "") == key("changkun.de", "x") {
+	if key("example.com", "") == key("example.com", "x") {
 		t.Fatal("the index page shares a key with an alias")
 	}
 }

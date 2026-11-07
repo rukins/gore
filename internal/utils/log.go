@@ -1,14 +1,10 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package utils
 
 import (
 	"log"
 	"net/http"
 
-	"changkun.de/x/redir/internal/config"
+	"github.com/rukins/gore/internal/config"
 )
 
 // Logging wraps an http handler and returns a new handler that prints

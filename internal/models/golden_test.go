@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package models_test
 
 import (
@@ -11,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/models"
 )
 
 var update = flag.Bool("update", false, "rewrite the classification golden file")
@@ -19,7 +15,7 @@ var update = flag.Bool("update", false, "rewrite the classification golden file"
 // TestClassifyGolden derives every user agent in a sample taken from
 // production and compares the result against a recorded one.
 //
-// The sample is the 120 most frequent user agent strings on changkun.de,
+// The sample is the 120 most frequent user agent strings from a real deployment,
 // which cover the overwhelming majority of visits. A synthetic table test
 // cannot show whether the classifier is right about the traffic that
 // actually arrives; this can. The golden file is meant to be reviewed when

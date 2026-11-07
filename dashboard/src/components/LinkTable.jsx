@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Spark from './Spark'
 import Stats from './Stats'

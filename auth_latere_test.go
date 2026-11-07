@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -11,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"changkun.de/x/redir/internal/config"
+	"github.com/rukins/gore/internal/config"
 	"latere.ai/x/pkg/oidc"
 )
 
@@ -22,7 +18,7 @@ func TestPrincipalSet(t *testing.T) {
 	}{
 		{"", nil},
 		{"  ", nil},
-		{"hi@changkun.de", []string{"hi@changkun.de"}},
+		{"hi@example.com", []string{"hi@example.com"}},
 		{"A@B.de, C@D.de", []string{"a@b.de", "c@d.de"}},
 		{"a@b.de,,  ,c@b.de ", []string{"a@b.de", "c@b.de"}},
 	} {
@@ -44,15 +40,15 @@ func TestPrincipalSet(t *testing.T) {
 // token from auth.latere.ai proves who is calling, and the allowlist alone
 // decides whether that principal may administer this deployment.
 func TestPermit(t *testing.T) {
-	a := &latereAuth{allowed: principalSet("hi@changkun.de, some-principal-id")}
+	a := &latereAuth{allowed: principalSet("hi@example.com, some-principal-id")}
 
 	for _, tt := range []struct {
 		name string
 		user *oidc.User
 		want string
 	}{
-		{"allowed by email", &oidc.User{Sub: "s1", Email: "hi@changkun.de"}, "hi@changkun.de"},
-		{"email match is case insensitive", &oidc.User{Sub: "s1", Email: "HI@Changkun.DE"}, "HI@Changkun.DE"},
+		{"allowed by email", &oidc.User{Sub: "s1", Email: "hi@example.com"}, "hi@example.com"},
+		{"email match is case insensitive", &oidc.User{Sub: "s1", Email: "HI@Example.COM"}, "HI@Example.COM"},
 		{"allowed by principal id", &oidc.User{Sub: "some-principal-id"}, "some-principal-id"},
 		{"a valid but unlisted principal is refused", &oidc.User{Sub: "s2", Email: "eve@example.com"}, ""},
 		{"no session", nil, ""},
@@ -65,7 +61,7 @@ func TestPermit(t *testing.T) {
 	// An unconfigured relying party must refuse everyone rather than fall
 	// through to an anonymous session.
 	var off *latereAuth
-	if got := off.permit(&oidc.User{Email: "hi@changkun.de"}); got != "" {
+	if got := off.permit(&oidc.User{Email: "hi@example.com"}); got != "" {
 		t.Errorf("unconfigured latereAuth admitted %q, want a refusal", got)
 	}
 	if got := off.user(httptest.NewRecorder(), httptest.NewRequest("GET", "/s/", nil)); got != "" {
@@ -79,8 +75,8 @@ func testAuth(t *testing.T) *latereAuth {
 	t.Helper()
 	c := oidc.New(oidc.Config{
 		AuthURL:     "https://auth.example.test",
-		ClientID:    "redir-test",
-		RedirectURL: "https://changkun.de/s/" + callbackPath,
+		ClientID:    "gore-test",
+		RedirectURL: "https://example.com/s/" + callbackPath,
 		CookieKey:   "0123456789abcdef0123456789abcdef",
 	})
 	if c == nil {
@@ -88,7 +84,7 @@ func testAuth(t *testing.T) *latereAuth {
 	}
 	return &latereAuth{
 		clients: map[string]*oidc.Client{config.Conf.Hostname(): c},
-		allowed: principalSet("hi@changkun.de"),
+		allowed: principalSet("hi@example.com"),
 	}
 }
 
@@ -117,7 +113,7 @@ func TestLoginRoute(t *testing.T) {
 	q := loc.Query()
 	for k, want := range map[string]string{
 		"response_type":         "code",
-		"client_id":             "redir-test",
+		"client_id":             "gore-test",
 		"code_challenge_method": "S256",
 	} {
 		if got := q.Get(k); got != want {
@@ -213,15 +209,15 @@ func TestCallbackURLsPerSite(t *testing.T) {
 	t.Cleanup(func() { config.Conf = saved })
 	t.Setenv("AUTH_REDIRECT_URL", "")
 
-	config.Conf.Host = "https://changkun.de"
+	config.Conf.Host = "https://example.com"
 	config.Conf.Hosts = map[string]config.SiteOverride{
-		"golang.design": {RepoPath: "https://github.com/golang-design"},
+		"examplepkg.com": {RepoPath: "https://github.com/examplepkg"},
 	}
 
 	got := callbackURLs("/s/")
 	want := map[string]string{
-		"changkun.de":   "https://changkun.de/s/.auth/callback",
-		"golang.design": "https://golang.design/s/.auth/callback",
+		"example.com":   "https://example.com/s/.auth/callback",
+		"examplepkg.com": "https://examplepkg.com/s/.auth/callback",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d callbacks, want %d: %v", len(got), len(want), got)
@@ -241,17 +237,17 @@ func TestCallbackURLsHonourTheOverride(t *testing.T) {
 	t.Cleanup(func() { config.Conf = saved })
 	t.Setenv("AUTH_REDIRECT_URL", "https://proxy.example/s/.auth/callback")
 
-	config.Conf.Host = "https://changkun.de"
+	config.Conf.Host = "https://example.com"
 	config.Conf.Hosts = map[string]config.SiteOverride{
-		"golang.design": {},
+		"examplepkg.com": {},
 	}
 
 	got := callbackURLs("/s/")
-	if got["changkun.de"] != "https://proxy.example/s/.auth/callback" {
-		t.Errorf("the override was ignored: %q", got["changkun.de"])
+	if got["example.com"] != "https://proxy.example/s/.auth/callback" {
+		t.Errorf("the override was ignored: %q", got["example.com"])
 	}
-	if got["golang.design"] != "https://golang.design/s/.auth/callback" {
-		t.Errorf("the second site = %q", got["golang.design"])
+	if got["examplepkg.com"] != "https://examplepkg.com/s/.auth/callback" {
+		t.Errorf("the second site = %q", got["examplepkg.com"])
 	}
 }
 
@@ -276,23 +272,23 @@ func TestCallbackURLsFollowTheScheme(t *testing.T) {
 func TestClientForSelectsTheSite(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
-	config.Conf.Host = "https://changkun.de"
-	config.Conf.Hosts = map[string]config.SiteOverride{"golang.design": {}}
+	config.Conf.Host = "https://example.com"
+	config.Conf.Hosts = map[string]config.SiteOverride{"examplepkg.com": {}}
 
 	primary := &oidc.Client{}
 	second := &oidc.Client{}
 	a := &latereAuth{clients: map[string]*oidc.Client{
-		"changkun.de":   primary,
-		"golang.design": second,
+		"example.com":   primary,
+		"examplepkg.com": second,
 	}}
 
 	for _, tt := range []struct {
 		host string
 		want *oidc.Client
 	}{
-		{"changkun.de", primary},
-		{"golang.design", second},
-		{"golang.design:443", second},
+		{"example.com", primary},
+		{"examplepkg.com", second},
+		{"examplepkg.com:443", second},
 		{"evil.example", primary},
 		{"", primary},
 	} {

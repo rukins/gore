@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db_test
 
 import (
@@ -11,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
 	"github.com/jackc/pgx/v5"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
 )
 
 const (
@@ -40,10 +36,10 @@ const (
 // against a real PostgreSQL rather than a mock: the queries are the thing
 // under test, and a mock would only assert that they were called.
 func storeURI() string {
-	if uri := os.Getenv("REDIR_TEST_POSTGRES"); uri != "" {
+	if uri := os.Getenv("GORE_TEST_POSTGRES"); uri != "" {
 		return uri
 	}
-	return "postgres://redir:redir@127.0.0.1:5432/redir_test?sslmode=disable"
+	return "postgres://gore:gore@127.0.0.1:5432/gore_test?sslmode=disable"
 }
 
 // open connects, empties the store and seeds one public alias, so every

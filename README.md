@@ -1,19 +1,16 @@
-# redir
-
-[![Latest release](https://img.shields.io/github/v/tag/changkun/redir?label=latest)](https://github.com/changkun/redir/releases)
-![](https://changkun.de/urlstat?mode=github&repo=changkun/redir)
+# gore
+[![Latest release](https://img.shields.io/github/v/tag/rukins/gore?label=latest)](https://github.com/rukins/gore/releases)
 
 A self-hosted link shortener and Go vanity import server, in one binary.
 
-You own the domain, the links and the numbers. `changkun.de/s/blog`
-redirects; `changkun.de/x/redir` resolves for `go get`; the console shows
+You own the domain, the links and the numbers. `rukins.dev/s/blog`
+redirects; `rukins.dev/x/gore` resolves for `go get`; the console shows
 who followed what, with crawlers separated out rather than counted as
 readers.
 
-![The redir operator console](./.github/assets/admin.png)
+![The gore operator console](./.github/assets/admin.png)
 
 ## What it does
-
 - **Short links** under `/s/`, with semantic aliases rather than
   generated ones: `/s/blog`, `/s/talks/2026`.
 - **Go vanity imports** under `/x/`, serving the `go-import` meta tag so
@@ -40,23 +37,23 @@ readers.
 
 ## Getting started
 
-redir needs PostgreSQL. Create a database and a role for it:
+gore needs PostgreSQL. Create a database and a role for it:
 
 ```sql
-CREATE ROLE redir LOGIN PASSWORD 'secret';
-CREATE DATABASE redir OWNER redir;
+CREATE ROLE gore LOGIN PASSWORD 'secret';
+CREATE DATABASE gore OWNER gore;
 ```
 
 Copy the default configuration and point it at that database:
 
 ```sh
-$ mkdir -p data && cp internal/config/config.yml data/redirconf.yml
+$ mkdir -p data && cp internal/config/config.yml data/goreconf.yml
 ```
 
 ```yaml
 host: https://example.com
 addr: :80
-store: postgres://redir:secret@localhost:5432/redir?sslmode=disable
+store: postgres://gore:secret@localhost:5432/gore?sslmode=disable
 ```
 
 Then run it, with Docker:
@@ -72,16 +69,16 @@ or from source, which needs [Go](https://go.dev) 1.27 and
 ```sh
 $ make dashboard   # build the front end
 $ make             # build the server, embedding it
-$ REDIR_CONF=data/redirconf.yml ./redir -s
+$ GORE_CONF=data/goreconf.yml ./gore -s
 ```
 
 The schema is applied at start up from migrations embedded in the binary,
 so there is nothing to run first. Each start applies what is missing and
 nothing else.
 
-`data/redirconf.yml` is not tracked and is mounted into the container
+`data/goreconf.yml` is not tracked and is mounted into the container
 rather than built into the image, because it holds credentials. If
-`REDIR_CONF` names a file that cannot be read the server stops, rather
+`GORE_CONF` names a file that cannot be read the server stops, rather
 than starting quietly against the wrong database.
 
 ## Configuration
@@ -108,19 +105,18 @@ of emails or principal ids, matched case insensitively. An empty list
 rejects every login.
 
 ### Several sites
-
 The store keys links by hostname, so each site has its own aliases and
 its own statistics, and a request belongs to whichever site its `Host`
 header names. Only what differs needs configuring:
 
 ```yaml
-host: https://changkun.de
+host: https://example.com
 x:
-  repo_path: https://github.com/changkun
+  repo_path: https://github.com/example
 hosts:
-  golang.design:
+  examplepkg.com:
     # /x/ import paths and the VCS probe resolve here instead.
-    repo_path: https://github.com/golang-design
+    repo_path: https://github.com/examplepkg
     # The impressum and privacy pages name an operator, so they do not
     # follow onto another domain unless it is the same one.
     legal: false
@@ -132,17 +128,17 @@ is matched against the configured sites rather than trusted.
 
 ## Command line
 
-The server is `redir -s`. The same binary manages links from a shell,
+The server is `gore -s`. The same binary manages links from a shell,
 which is how a deployment without a browser adds one:
 
 ```sh
-$ redir -op create -a blog -l https://blog.example.com -trust
-$ redir -op update -a blog -l https://blog.example.com/new
-$ redir -op fetch  -a blog
-$ redir -op delete -a blog
+$ gore -op create -a blog -l https://blog.example.com -trust
+$ gore -op update -a blog -l https://blog.example.com/new
+$ gore -op fetch  -a blog
+$ gore -op delete -a blog
 
-$ redir -f import.yml   # import aliases from a file
-$ redir -d export.yml   # dump them to one
+$ gore -f import.yml   # import aliases from a file
+$ gore -d export.yml   # dump them to one
 ```
 
 | Flag | Meaning |
@@ -153,19 +149,14 @@ $ redir -d export.yml   # dump them to one
 | `-rederive` | recompute the stored browser, system, device and bot columns, then exit. Needed after a change to how visits are classified |
 
 ## Documentation
-
 - [API reference](./docs/api.md)
 - [GDPR](./docs/gdpr.md)
-- [Troubleshooting](./docs/trouble.md)
-- [Who uses this](./docs/users.md)
-- [Design specs](./specs/) — how the storage, statistics and console got
-  the way they are, and what went wrong on the way
 
 ## Contributing
-
-Feedback is the easiest contribution: what is useful, and what is
-missing. Pull requests are welcome too.
+This is an open-source project and all contributions are highly welcomed
 
 ## License
+This project is based on [redir](https://github.com/changkun/redir) by Changkun Ou, licensed under the MIT License.
 
-MIT &copy; 2020-2026 [Changkun Ou](https://changkun.de)
+Original code: MIT License &copy; 2020-2026 [Changkun Ou](https://changkun.de)
+Modifications: MIT License &copy; 2026 [Sergey Rukin](https://rukins.dev)

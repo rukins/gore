@@ -1,8 +1,4 @@
-# Copyright 2021 Changkun Ou. All rights reserved.
-# Use of this source code is governed by a MIT
-# license that can be found in the LICENSE file.
-
-name: redir
+name: gore
 
 on:
   push:
@@ -22,19 +18,19 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: redir
-          POSTGRES_PASSWORD: redir
-          POSTGRES_DB: redir_test
+          POSTGRES_USER: gore
+          POSTGRES_PASSWORD: gore
+          POSTGRES_DB: gore_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U redir"
+          --health-cmd "pg_isready -U gore"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
 
     env:
-      REDIR_TEST_POSTGRES: postgres://redir:redir@127.0.0.1:5432/redir_test?sslmode=disable
+      GORE_TEST_POSTGRES: postgres://gore:gore@127.0.0.1:5432/gore_test?sslmode=disable
 
     steps:
 

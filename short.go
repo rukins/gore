@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -19,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/models"
-	"changkun.de/x/redir/internal/short"
-	"changkun.de/x/redir/internal/utils"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/models"
+	"github.com/rukins/gore/internal/short"
+	"github.com/rukins/gore/internal/utils"
 )
 
 // sHandler redirects the current request to a known link if the alias is
-// found in the redir store.
+// found in the gore store.
 func (s *server) sHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -104,7 +100,7 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validating the operator and decode the redir data
+	// Validating the operator and decode the gore data
 	if !short.Op(red.Op).Valid() {
 		err = errors.New("unsupported operator")
 		return
@@ -135,7 +131,7 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// sHandlerGet is the core of redir service. It redirects a given
+// sHandlerGet is the core of gore service. It redirects a given
 // alias to the actual destination.
 func (s *server) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 	var err error
@@ -281,9 +277,6 @@ func (s *server) serveStatic(
 	r *http.Request,
 	prefix string,
 ) error {
-	// The legal pages state who operates a site, so they follow the site
-	// the request arrived on rather than the process. A second site does
-	// not inherit them; see specs/004-unify-golang-design.md.
 	site := config.Conf.SiteFor(r.Host)
 
 	var (
@@ -372,7 +365,7 @@ const (
 
 // recognizeVisitor implements a best effort visitor recording.
 //
-// If the redir's cookie is presented, then we use cookie id.
+// If the gore cookie is presented, then we use cookie id.
 // If the cookie does not present any data, we read the IP address, and
 // allocates a new visitor id for the visitor.
 //
@@ -418,8 +411,7 @@ func (s *server) recognizeVisitor(
 		// visit.
 		//
 		// It stays a session cookie. Giving it a lifetime would change
-		// what the numbers mean, and UV counts addresses today; see
-		// specs/003-enriched-stats.md.
+		// what the numbers mean, and UV counts addresses today.
 		http.SetCookie(w, &http.Cookie{
 			Name:     redirVidCookie,
 			Value:    vid,
@@ -431,7 +423,7 @@ func (s *server) recognizeVisitor(
 	}
 }
 
-// checkdb checks whether the given alias is exsited in the redir database
+// checkdb checks whether the given alias is exsited in the gore database
 func (s *server) checkdb(ctx context.Context, host, alias string) (*models.Redir, error) {
 	a, err := s.db.FetchAlias(ctx, host, alias)
 	if err != nil {
@@ -447,8 +439,8 @@ func (s *server) checkvcs(ctx context.Context, site config.Site, alias string) (
 
 	// The organisation probed is the one belonging to the site the
 	// request arrived on, not the process's primary site. A miss on
-	// golang.design must look for golang-design/<alias> and never
-	// changkun/<alias>, because a 200 here creates a link.
+	// examplepkg,com must look for examplepkg/<alias> and never
+	// examplep/<alias>, because a 200 here creates a link.
 	repoPath := site.RepoPath
 	repoPath = strings.TrimSuffix(repoPath, "/*")
 	tryPath := fmt.Sprintf("%s/%s", repoPath, alias)
@@ -506,7 +498,7 @@ func (s *server) sIndex(
 	r *http.Request,
 ) error {
 	// The legal pages name an operator, so they belong to the site that
-	// was asked for rather than to the process. See specs/004.
+	// was asked for rather than to the process.
 	site := config.Conf.SiteFor(r.Host)
 
 	e := struct {

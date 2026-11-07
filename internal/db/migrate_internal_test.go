@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db
 
 import (
@@ -13,10 +9,10 @@ import (
 )
 
 func testPostgresURI() string {
-	if uri := os.Getenv("REDIR_TEST_POSTGRES"); uri != "" {
+	if uri := os.Getenv("GORE_TEST_POSTGRES"); uri != "" {
 		return uri
 	}
-	return "postgres://redir:redir@127.0.0.1:5432/redir_test?sslmode=disable"
+	return "postgres://gore:gore@127.0.0.1:5432/gore_test?sslmode=disable"
 }
 
 // TestLoadMigrations checks the files are found and ordered. A migration
@@ -45,7 +41,7 @@ func TestLoadMigrations(t *testing.T) {
 }
 
 // TestMigrateFromEmpty runs the whole schema against a database with
-// nothing in it, which is the case the deploy will actually hit: redir's
+// nothing in it, which is the case the deploy will actually hit: gore's
 // database on the shared instance is new.
 func TestMigrateFromEmpty(t *testing.T) {
 	ctx := context.Background()

@@ -1,14 +1,10 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package utils_test
 
 import (
 	"strings"
 	"testing"
 
-	"changkun.de/x/redir/internal/utils"
+	"github.com/rukins/gore/internal/utils"
 )
 
 func TestRandomString(t *testing.T) {

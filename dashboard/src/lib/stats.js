@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 // The server groups the statistics and orders them, so these helpers only
 // reshape a payload for a chart. The dashboard used to parse every user
 // agent here instead, which meant the stats endpoint sent one row per

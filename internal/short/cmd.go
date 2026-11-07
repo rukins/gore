@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package short
 
 import (
@@ -11,9 +7,9 @@ import (
 	"log"
 	"regexp"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
 	"gopkg.in/yaml.v3"
 )
 

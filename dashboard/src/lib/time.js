@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 const pad = (n) => (n < 10 ? '0' + n : String(n))
 
 // day formats a Date as the YYYY-MM-DD the stats endpoint parses. It reads

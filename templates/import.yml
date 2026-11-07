@@ -1,11 +1,11 @@
 ---
 short:
-  - alias: changkun
-    url: https://changkun.de
+  - alias: rukins
+    url: https://rukins.dev
     valid_from: 2021-03-19T12:08:00+01:00
   - alias: any
     private: true
-    url: https://changkun.de
+    url: https://rukins.dev
 random:
   - url: https://to.what.ever
     valid_from: 2022-01-01T00:00:00-08:00

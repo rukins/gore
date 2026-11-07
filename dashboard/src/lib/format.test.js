@@ -1,15 +1,11 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 import { describe, expect, it } from 'vitest'
 import { nextSort, sortRows, targetLabel } from './format'
 
 describe('targetLabel', () => {
   it('drops the scheme and keeps host and path', () => {
-    expect(targetLabel('https://blog.changkun.de/')).toBe('blog.changkun.de')
-    expect(targetLabel('https://github.com/golang-design/lockfree')).toBe(
-      'github.com/golang-design/lockfree',
+    expect(targetLabel('https://blog.example.com/')).toBe('blog.example.com')
+    expect(targetLabel('https://github.com/examplepkg/lockfree')).toBe(
+      'github.com/examplepkg/lockfree',
     )
   })
 
@@ -20,14 +16,14 @@ describe('targetLabel', () => {
   })
 
   // Production holds mailto: targets, one of them obfuscated as
-  // "mailto:hi[at]golang.design". There is no host to strip, and
+  // "mailto:hi[at]examplepkg.com". There is no host to strip, and
   // mangling it would misrepresent where the link goes.
   it('leaves an address alone', () => {
-    expect(targetLabel('mailto:research@changkun.de')).toBe(
-      'mailto:research@changkun.de',
+    expect(targetLabel('mailto:research@example.com')).toBe(
+      'mailto:research@example.com',
     )
-    expect(targetLabel('mailto:hi[at]golang.design')).toBe(
-      'mailto:hi[at]golang.design',
+    expect(targetLabel('mailto:hi[at]examplepkg.com')).toBe(
+      'mailto:hi[at]examplepkg.com',
     )
   })
 

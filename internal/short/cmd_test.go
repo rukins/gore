@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package short_test
 
 import (
@@ -9,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
-	"changkun.de/x/redir/internal/short"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
+	"github.com/rukins/gore/internal/short"
 )
 
 // fakeStore holds one link, so an update can be checked against what it
@@ -44,7 +40,7 @@ func (s *fakeStore) StoreAlias(_ context.Context, r *models.Redir) error {
 //
 // A boolean flag that was not passed is false, which is indistinguishable
 // from one passed as false. An update read that as an instruction, so
-// `redir -op update -a x -l <new url>` also made a private link public
+// `gore -op update -a x -l <new url>` also made a private link public
 // and a trusted link warn before redirecting. Nothing said so.
 func TestUpdateKeepsUnmentionedFields(t *testing.T) {
 	held := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)

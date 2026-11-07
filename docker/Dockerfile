@@ -1,7 +1,3 @@
-# Copyright 2020 Changkun Ou. All rights reserved.
-# Use of this source code is governed by a MIT
-# license that can be found in the LICENSE file.
-
 # The dashboard and the server are built here rather than on the deploy
 # host, so a deployment needs nothing but Docker. Keeping the Go and Node
 # toolchains in step with go.mod and dashboard/package.json on every host
@@ -24,15 +20,15 @@ COPY . .
 COPY --from=dashboard /src/dashboard/build ./dashboard/build
 ARG VERSION=dev
 RUN echo "$VERSION" > internal/version/.version && \
-    CGO_ENABLED=0 go build -o /redir
+    CGO_ENABLED=0 go build -o /gore
 
 FROM alpine:3.22
 # Signing in calls the auth service over TLS, which needs a trust store.
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
-COPY --from=server /redir ./redir
-# The deployment config is mounted at /app/data/redirconf.yml rather than
+COPY --from=server /gore ./gore
+# The deployment config is mounted at /app/data/goreconf.yml rather than
 # copied in: it holds credentials, and baking it in would put them in
 # every layer of a shared image. See docker-compose.yml.
 EXPOSE 80
-CMD ["/app/redir", "-s"]
+CMD ["/app/gore", "-s"]

@@ -1,10 +1,10 @@
-# Why redir is GDPR compliant?
+# Why gore is GDPR compliant?
 
 There are several features are supported for GDPR:
 
 1. It is possible to hide IP addresses from collected access statistics.
    With `gdpr.hide_ip`, a visit stores a digest keyed with
-   `REDIR_IP_HASH_KEY` rather than the address, and the access log omits
+   `GORE_IP_HASH_KEY` rather than the address, and the access log omits
    the address too. The key is required: an unkeyed digest of an address
    can be reversed by computing all four billion of them, so the server
    refuses to start rather than offer protection it does not provide.
@@ -13,4 +13,4 @@ There are several features are supported for GDPR:
 
 ## License
 
-MIT &copy; 2020-2026 [Changkun Ou](https://changkun.de)
+MIT &copy; 2026 [Sergey Rukin](https://rukins.dev)

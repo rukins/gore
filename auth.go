@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -13,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/utils"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/utils"
 )
 
 var errUnauthorized = errors.New("request unauthorized")
@@ -69,7 +65,7 @@ func (s *server) handleAuth(w http.ResponseWriter, r *http.Request) (user string
 			errUnauthorized, config.Conf.Auth.Enable)
 	}
 
-	w.Header().Set("WWW-Authenticate", `Basic realm="redir"`)
+	w.Header().Set("WWW-Authenticate", `Basic realm="gore"`)
 
 	u, p, ok := r.BasicAuth()
 	if !ok {

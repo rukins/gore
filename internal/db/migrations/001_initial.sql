@@ -1,7 +1,3 @@
--- Copyright 2021 Changkun Ou. All rights reserved.
--- Use of this source code is governed by a MIT
--- license that can be found in the LICENSE file.
-
 -- links holds one row per short alias. The identity of a link is the pair
 -- (host, alias): one process serves several hosts, and the same alias may
 -- mean different things on each.

@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package utils
 
 import (
@@ -15,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"changkun.de/x/redir/internal/config"
+	"github.com/rukins/gore/internal/config"
 )
 
 // pseudonymKey is the secret gdpr.hide_ip hashes with.
@@ -36,13 +32,13 @@ var (
 
 func hashKey() []byte {
 	pseudonymOnce.Do(func() {
-		pseudonymKey = []byte(os.Getenv("REDIR_IP_HASH_KEY"))
+		pseudonymKey = []byte(os.Getenv("GORE_IP_HASH_KEY"))
 		if len(pseudonymKey) == 0 {
 			// Failing loudly beats hashing with nothing. A deployment
 			// that asked for addresses to be hidden and got a digest
 			// anyone can reverse is worse off than one that knows it
 			// stores addresses.
-			log.Fatalln("gdpr.hide_ip is set but REDIR_IP_HASH_KEY is empty: " +
+			log.Fatalln("gdpr.hide_ip is set but GORE_IP_HASH_KEY is empty: " +
 				"an unkeyed digest of an address can be reversed by " +
 				"computing every address, so it would hide nothing")
 		}
@@ -61,7 +57,7 @@ func hashKey() []byte {
 //
 // X-Forwarded-For is set by the client, and it is preferred over the
 // address the connection actually came from. That is correct behind a
-// reverse proxy that overwrites the header, and it is what redir is
+// reverse proxy that overwrites the header, and it is what gore is
 // deployed behind. Exposed directly, a visitor could choose what is
 // recorded for them.
 //

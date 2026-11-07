@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 // basePath returns the path the dashboard is mounted on, without its
 // trailing slash, e.g. "/s" for a dashboard served at "/s/".
 export const basePath = () => {

@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 import { useCallback, useEffect, useState } from 'react'
 import Shell from './Shell'
 import Overview from './Overview'
@@ -50,7 +46,7 @@ const Home = (props) => {
       {props.showImpressum && <a href="./.impressum">Impressum</a>}
       {props.showPrivacy && <a href="./.privacy">Privacy</a>}
       {props.showContact && <a href="./.contact">Contact</a>}
-      <span>redir on {props.site}</span>
+      <span>gore on {props.site}</span>
     </>
   )
 

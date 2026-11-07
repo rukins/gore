@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -15,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"changkun.de/x/redir/internal/cache"
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/utils"
+	"github.com/rukins/gore/internal/cache"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/utils"
 )
 
 type server struct {
@@ -135,8 +131,8 @@ func (s *server) registerHandler() {
 func (s *server) xHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		// The import path comes from the request, and the repository
-		// root from the site it belongs to: golang.design/x/foo must
-		// resolve to golang-design/foo, not changkun/foo.
+		// root from the site it belongs to: examplepkg.com/x/foo must
+		// resolve to examplepkg.com/foo, not example.com/foo.
 		site := config.Conf.SiteFor(req.Host)
 		importPath := strings.TrimSuffix(req.Host+config.Conf.X.Prefix, "/")
 		path := strings.TrimSuffix(req.Host+req.URL.Path, "/")
@@ -152,7 +148,7 @@ func (s *server) xHandler() http.HandlerFunc {
 		importRoot = importPath + "/" + elem
 		repoRoot = site.RepoPath + "/" + elem
 
-		// Handling 'git clone https://changkun.de/x/repo'.
+		// Handling 'git clone https://example.com/x/repo'.
 		if suffix == "/info/refs" && strings.HasPrefix(req.URL.Query().Get("service"), "git-") && elem != "" {
 			http.Redirect(w, req, fmt.Sprintf("%s/info/refs?%s", repoRoot, req.URL.RawQuery), http.StatusFound)
 			return

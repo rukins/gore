@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package config
 
 import (
@@ -190,16 +186,16 @@ func NormalizeHost(h string) string {
 }
 
 func (c *config) parse() {
-	// An unset REDIR_CONF means "run on the built-in defaults". A set one
+	// An unset GORE_CONF means "run on the built-in defaults". A set one
 	// names a file the operator expects to be used, so failing to read it
 	// is an error: falling back would quietly serve the sample config,
 	// which points at another database and re-enables the sample
 	// credentials.
 	d := defaultConf
-	if f := os.Getenv("REDIR_CONF"); f != "" {
+	if f := os.Getenv("GORE_CONF"); f != "" {
 		b, err := os.ReadFile(f)
 		if err != nil {
-			log.Fatalf("cannot read REDIR_CONF %v: %v\n", f, err)
+			log.Fatalf("cannot read GORE_CONF %v: %v\n", f, err)
 		}
 		d = b
 	}

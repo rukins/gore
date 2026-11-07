@@ -1,10 +1,6 @@
-# Copyright 2021 Changkun Ou. All rights reserved.
-# Use of this source code is governed by a MIT
-# license that can be found in the LICENSE file.
-
 VERSION = $(shell git describe --always --tags)
-IMAGE = redir
-BINARY = redir
+IMAGE = gore
+BINARY = gore
 TARGET = -o $(BINARY)
 BUILD_FLAGS = $(TARGET)
 GOOS = linux darwin
@@ -19,7 +15,7 @@ $(GOOS): $(GOARCH)
 		mkdir -p build/$(BINARY); \
 		cp internal/config/config.yml build/$(BINARY)/config.yml; \
 		CGO_ENABLED=0 GOARCH=$${goarch} GOOS=$@ go build -o build/$(BINARY)/$(BINARY); \
-		zip -r build/redir-$(VERSION)-$@-$${goarch}.zip build/$(BINARY); \
+		zip -r build/gore-$(VERSION)-$@-$${goarch}.zip build/$(BINARY); \
 		rm -rf build/$(BINARY); \
 	done
 # restore

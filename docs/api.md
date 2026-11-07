@@ -1,4 +1,4 @@
-# redir APIs
+# gore APIs
 
 Everything is served under two prefixes, `/s` and `/x`, both configurable.
 `/s` carries the redirects, the pages and the JSON the console reads,
@@ -42,12 +42,12 @@ A page of links. `index` is public and `index-pro` requires a session.
   "data": [
     {
       "alias": "blog",
-      "url": "https://blog.changkun.de/",  // empty in the public listing
+      "url": "https://blog.example.com/",  // empty in the public listing
       "private": false,
       "trust": true,
       "valid_from": "0001-01-01T00:00:00Z", // the zero time means always
-      "created_by": "changkun",
-      "updated_by": "changkun",
+      "created_by": "example",
+      "updated_by": "example",
       "pv": 31907,                          // zero in the public listing
       "uv": 26839
     }
@@ -118,7 +118,7 @@ Creates, updates and deletes links. Requires a session.
                             // existing alias, and data.alias may rename it
   "data": {
     "alias": "awesome-link",
-    "url": "https://github.com/changkun",
+    "url": "https://github.com/rukins",
     "private": false,       // hidden from the public index
     "trust": true,          // false shows a warning before leaving the site
     "valid_from": "2026-01-01T00:00:00+00:00" // omit for always
@@ -136,4 +136,4 @@ from the site the request arrived on, so each site resolves to its own.
 
 ## License
 
-MIT &copy; 2020-2026 [Changkun Ou](https://changkun.de)
+MIT &copy; 2026 [Sergey Rukin](https://rukins.dev)

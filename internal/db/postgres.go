@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package db
 
 import (
@@ -12,17 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	"changkun.de/x/redir/internal/models"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rukins/gore/internal/models"
 	"uuid"
 )
 
 // pgStore is the PostgreSQL backend.
-//
-// The instance is shared with another service, so this connects to its own
-// database with its own role and applies its own schema; see
-// specs/001-shared-postgres.md.
 type pgStore struct {
 	pool *pgxpool.Pool
 }

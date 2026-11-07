@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -15,15 +11,15 @@ import (
 	"runtime"
 	"time"
 
-	"changkun.de/x/redir/internal/config"
-	"changkun.de/x/redir/internal/db"
-	"changkun.de/x/redir/internal/models"
-	"changkun.de/x/redir/internal/short"
-	"changkun.de/x/redir/internal/version"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/models"
+	"github.com/rukins/gore/internal/short"
+	"github.com/rukins/gore/internal/version"
 )
 
 var (
-	daemon   = flag.Bool("s", false, "Run redir server")
+	daemon   = flag.Bool("s", false, "Run gore server")
 	fromfile = flag.String("f", "", "Import aliases from a YAML file")
 	dump     = flag.String("d", "", "Dump aliases from database and export as a YAML file")
 	operate  = flag.String("op", "create", "What to do: create, update, delete or fetch")
@@ -86,58 +82,58 @@ func givenFlags() short.Given {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `redir is a featured URL shortener. The redir server (run via '-s' option),
+	fmt.Fprintf(os.Stderr, `gore is a featured URL shortener. The gore server (run via '-s' option),
 will connect to the default database address %s.
-It is possible to reconfig redir using an external configuration file.
-See https://changkun.de/s/redir for more details.
+It is possible to reconfig gore using an external configuration file.
+See https://github.com/rukins/gore for more details.
 
 Version: %s
 GoVersion: %s
 
 Command line usage:
 
-$ redir [-s] [-f <file>] [-d <file>] [-op <operator> -a <alias> -l <link> -p -t -vt <time>]
+$ gore [-s] [-f <file>] [-d <file>] [-op <operator> -a <alias> -l <link> -p -t -vt <time>]
 
 options:
 `, db.Redact(config.Conf.Store), version.Version, runtime.Version())
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, `
 examples:
-redir -s
-	Run the redir server
+gore -s
+	Run the gore server
 
-redir -f ./template/import.yml
+gore -f ./template/import.yml
 	Import aliases from a file
 
-redir -d ./template/export.yml
+gore -d ./template/export.yml
 	Dump all aliases from database and export in YAML format.
 
-redir -a changkun -l https://changkun.de
+gore -a rukins -l https://rukins.dev
 	Allocate new short link if possible
 
-redir -l https://changkun.de
+gore -l https://rukins.dev
 	Allocate a random alias for the given link if possible
 
-redir -op fetch -a changkun
+gore -op fetch -a rukins
 	Fetch alias information
 
-redir -op update -a changkun -l https://blog.changkun.de -p
+gore -op update -a rukins -l https://rukins.dev -p
 	The alias will not be listed in the index page
 
-redir -op update -a changkun -l https://blog.changkun.de -p -t
+gore -op update -a rukins -l https://rukins.dev -p -t
 	The alias will not be listed in the index page and will always do the redirect without showing privacy warning
 
-redir -op update -a changkun -l https://blog.changkun.de -vt 2022-01-01T00:00:00+08:00
+gore -op update -a rukins -l https://rukins.dev -vt 2022-01-01T00:00:00+08:00
 	The alias will be accessible starts from 2022-01-01T00:00:00+08:00
 
-redir -op delete -a changkun
+gore -op delete -a rukins
 	Delete the alias from database
 `)
 	os.Exit(2)
 }
 
 func main() {
-	log.SetPrefix("redir: ")
+	log.SetPrefix("gore: ")
 	log.SetFlags(log.Lmsgprefix | log.LstdFlags | log.Lshortfile)
 	flag.CommandLine.Usage = usage
 	flag.Parse()

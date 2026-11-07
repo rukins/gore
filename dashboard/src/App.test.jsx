@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import App from './App'
@@ -26,7 +22,7 @@ const page = {
   data: [
     {
       alias: 'blog',
-      url: 'https://blog.changkun.de/',
+      url: 'https://blog.example.com/',
       pv: 31907,
       uv: 26839,
       private: false,

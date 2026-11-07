@@ -1,4 +1,4 @@
-module changkun.de/x/redir
+module github.com/rukins/gore
 
 go 1.27.0
 

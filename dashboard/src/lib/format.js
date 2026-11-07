@@ -1,7 +1,3 @@
-// Copyright 2021 Changkun Ou. All rights reserved.
-// Use of this source code is governed by a MIT
-// license that can be found in the LICENSE file.
-
 // targetLabel strips a URL down to what identifies it at a glance.
 //
 // The column is for scanning down, so it shows host and path and drops
