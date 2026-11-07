@@ -112,7 +112,7 @@ const LinkForm = ({ record, onClose, onSaved }) => {
         <Form.Item
           name="private"
           label="Listing"
-          extra="A private link works, it is simply not shown on the public index."
+          extra="A private link still works. It stays off the public index."
         >
           <Seg
             label="Listing"
@@ -126,7 +126,7 @@ const LinkForm = ({ record, onClose, onSaved }) => {
         <Form.Item
           name="trust"
           label="External redirects"
-          extra="An untrusted link shows a warning page before leaving the site."
+          extra="Warn first shows a page before the visitor leaves this site."
         >
           <Seg
             label="External redirects"
@@ -140,7 +140,7 @@ const LinkForm = ({ record, onClose, onSaved }) => {
         <Form.Item
           name="valid_from"
           label="Valid from"
-          extra="Leave empty for always. Before this time the link shows a countdown."
+          extra="Leave empty to start now. Until this time, visitors see a countdown."
         >
           <DatePicker showTime style={{ width: '100%' }} />
         </Form.Item>

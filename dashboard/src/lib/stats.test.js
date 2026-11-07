@@ -45,8 +45,10 @@ describe('botsExcluded', () => {
   })
 
   it('reports what was left out', () => {
-    expect(botsExcluded({ pv: 1, uv: 1 })).toContain('1 automated visit')
-    expect(botsExcluded({ pv: 23191, uv: 400 })).toContain('23,191 automated visits')
+    expect(botsExcluded({ pv: 1, uv: 1 })).toBe('Excludes 1 automated visit.')
+    expect(botsExcluded({ pv: 23191, uv: 400 })).toBe(
+      'Excludes 23,191 automated visits.',
+    )
   })
 })
 

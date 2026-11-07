@@ -40,12 +40,12 @@ const Overview = ({ data, days, site }) => {
         <Tile
           label="By people"
           value={ready ? fmt(o.people) : '–'}
-          note="the visits every other figure counts"
+          note="counted in the charts"
         />
         <Tile
           label="Automated"
           value={ready ? pct(o.bots, o.visits) : '–'}
-          note={ready ? `${fmt(o.bots)} visits by bots, left out below` : ' '}
+          note={ready ? `${fmt(o.bots)} visits, not in the charts` : ' '}
         />
       </section>
 

@@ -67,6 +67,8 @@ describe('the console', () => {
     expect(await screen.findByText('/blog')).toBeTruthy()
     // The share is derived, not sent, so it is worth asserting.
     expect(await screen.findByText('56.7%')).toBeTruthy()
+    expect(screen.getByText('counted in the charts')).toBeTruthy()
+    expect(screen.getByText('197,459 visits, not in the charts')).toBeTruthy()
     expect(screen.getByText('New link')).toBeTruthy()
   })
 

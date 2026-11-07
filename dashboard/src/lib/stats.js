@@ -29,5 +29,5 @@ export const botsExcluded = (bots) => {
     return ''
   }
   const visits = pv === 1 ? '1 automated visit' : `${pv.toLocaleString()} automated visits`
-  return `Excludes ${visits}. Bots are not counted in any figure on this page.`
+  return `Excludes ${visits}.`
 }

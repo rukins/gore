@@ -76,8 +76,8 @@ const Stats = ({ alias, devMode }) => {
   return (
     <div className="detail-in">
       <Trend
-        title={`Daily visits of ${aliasPath(alias)}`}
-        note={botsExcluded(bots) || 'Bots are not counted in any figure here.'}
+        title={`Daily visits to ${aliasPath(alias)}`}
+        note={botsExcluded(bots) || 'Automated visits are not counted in the charts.'}
         tools={
           <DatePicker.RangePicker
             size="small"

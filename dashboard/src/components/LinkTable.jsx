@@ -190,8 +190,8 @@ const LinkTable = ({
               ? 'Loading…'
               : query
                 ? paged
-                  ? 'No link on this page matches.'
-                  : 'No link matches.'
+                  ? 'No matching links on this page.'
+                  : 'No matching links.'
                 : 'No links yet.'}
           </div>
         ) : !isAdmin ? (
@@ -304,7 +304,7 @@ const LinkTable = ({
                                   className="tag"
                                   title="Shows a warning before leaving the site"
                                 >
-                                  warns
+                                  warning
                                 </span>
                               )}
                               {held(r) && (
@@ -312,7 +312,7 @@ const LinkTable = ({
                                   className="tag"
                                   title={`Shows a countdown until ${new Date(r.valid_from).toLocaleString()}`}
                                 >
-                                  held
+                                  waiting
                                 </span>
                               )}
                             </td>
