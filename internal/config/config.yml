@@ -59,8 +59,6 @@ gdpr:
     content: |
       <h1 id="impressum">Impressum</h1>
       <p>This page contains the provided legal information regarding the current user of gore.</p>
-      <h2 id="address">Address</h2>
-      <p>Mauthäuslstraße 81379 München</p>
       <h2 id="disclaimer">Disclaimer</h2>
       <p>All information on these redirects was created to the best of our knowledge, but errors cannot be ruled out with absolute certainty. Only the stipulations in the relevant legal bases (laws, ordinances, statutes) are legally binding.<br />
       Redirected links to external offers are prompt to visitors to confirm a redirect action. Despite careful control, no liability is assumed for us. The operators of the linked pages are individually responsible for their created gore records.</p>
