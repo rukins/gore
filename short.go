@@ -58,7 +58,8 @@ type shortInput struct {
 }
 
 type shortOutput struct {
-	Message string `json:"message"`
+	Message string `json:"message,omitempty"`
+	Alias   string `json:"alias,omitempty"`
 }
 
 // sHandlerPost handles all kinds of operations.
@@ -125,10 +126,22 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 	// Edit redirect data.
 	err = short.Edit(r.Context(), s.db, short.Op(red.Op), red.Alias, &link, all)
-	if err == nil {
-		// Flush the cache so that the changes can be effected immediately.
-		s.cache.Flush()
+	if err != nil {
+		return
 	}
+	// Flush the cache so that the changes can be effected immediately.
+	s.cache.Flush()
+
+	// A create may have chosen the alias. The body names it, and carries
+	// no message: a message is how a refusal is told apart from success.
+	if short.Op(red.Op) != short.OpCreate {
+		return
+	}
+	b, err = json.Marshal(shortOutput{Alias: link.Alias})
+	if err != nil {
+		return
+	}
+	_, _ = w.Write(b)
 }
 
 // sHandlerGet is the core of gore service. It redirects a given

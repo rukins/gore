@@ -23,7 +23,7 @@ var (
 	fromfile = flag.String("f", "", "Import aliases from a YAML file")
 	dump     = flag.String("d", "", "Dump aliases from database and export as a YAML file")
 	operate  = flag.String("op", "create", "What to do: create, update, delete or fetch")
-	alias    = flag.String("a", "", "The alias to act on")
+	alias    = flag.String("a", "", "The alias to act on. Optional when creating: a random one is chosen")
 	link     = flag.String("l", "", "Where the alias points. Not needed for delete or fetch")
 	private  = flag.Bool("p", false, "Keep the link off the public index. It still works. For create and update")
 	trust    = flag.Bool("trust", false, "Redirect directly instead of warning before leaving the site. Same-origin links always redirect")
@@ -182,7 +182,7 @@ func runCmd() {
 
 	switch o := short.Op(*operate); o {
 	case short.OpCreate:
-		if *alias == "" || *link == "" {
+		if *link == "" {
 			flag.Usage()
 			return
 		}

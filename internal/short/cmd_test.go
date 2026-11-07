@@ -2,6 +2,7 @@ package short_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -94,5 +95,103 @@ func TestUpdateAppliesWhatIsGiven(t *testing.T) {
 	}
 	if s.updated.URL != "https://old.example" {
 		t.Errorf("URL = %q, want the stored one", s.updated.URL)
+	}
+}
+
+// createStore records every insert. fail is how many of them are refused
+// as already taken, so a retry can be told from a single draw.
+type createStore struct {
+	db.Store
+	fail    int
+	stored  []*models.Link
+	updated *models.Link
+}
+
+func (s *createStore) StoreAlias(_ context.Context, r *models.Link) error {
+	c := *r
+	s.stored = append(s.stored, &c)
+	if s.fail > 0 {
+		s.fail--
+		return db.ErrAliasExists
+	}
+	return nil
+}
+
+func (s *createStore) FetchAlias(context.Context, string, string) (*models.Link, error) {
+	return nil, errors.New("missing")
+}
+
+func (s *createStore) UpdateAlias(_ context.Context, r *models.Link) error {
+	c := *r
+	s.updated = &c
+	return nil
+}
+
+func TestCreateWithoutAliasAssignsOne(t *testing.T) {
+	for _, alias := range []string{"", " \t"} {
+		s := &createStore{}
+		r := &models.Link{Alias: alias, URL: "https://example.com", UpdatedBy: "ada"}
+		err := short.Edit(context.Background(), s, short.OpCreate, "", r, short.Given{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(s.stored) != 1 {
+			t.Fatalf("alias %q: stored %d links, want 1", alias, len(s.stored))
+		}
+		got := s.stored[0]
+		if len(got.Alias) != 6 || !short.Validity.MatchString(got.Alias) {
+			t.Fatalf("alias = %q, want 6 valid characters", got.Alias)
+		}
+		if got.Alias != r.Alias {
+			t.Fatalf("returned %q, stored %q", r.Alias, got.Alias)
+		}
+		if got.CreatedBy != "ada" {
+			t.Errorf("CreatedBy = %q, want ada", got.CreatedBy)
+		}
+	}
+}
+
+func TestCreateRetriesATakenAlias(t *testing.T) {
+	s := &createStore{fail: 1}
+	r := &models.Link{URL: "https://example.com", UpdatedBy: "ada"}
+	err := short.Edit(context.Background(), s, short.OpCreate, "", r, short.Given{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.stored) != 2 {
+		t.Fatalf("stored %d draws, want the collision and the retry", len(s.stored))
+	}
+	if s.stored[0].Alias == s.stored[1].Alias {
+		t.Fatalf("retried %q, the same draw", s.stored[0].Alias)
+	}
+	if r.Alias != s.stored[1].Alias {
+		t.Fatalf("kept %q, want the second draw %q", r.Alias, s.stored[1].Alias)
+	}
+}
+
+func TestCreateRejectsInvalidAlias(t *testing.T) {
+	s := &createStore{}
+	err := short.Edit(context.Background(), s, short.OpCreate, "",
+		&models.Link{Alias: "!"}, short.Given{})
+	if !errors.Is(err, short.ErrInvalidAlias) {
+		t.Fatalf("err = %v, want ErrInvalidAlias", err)
+	}
+	if s.stored != nil {
+		t.Fatalf("stored %v for an invalid alias", s.stored)
+	}
+}
+
+func TestUpdateWithoutAliasDoesNotStore(t *testing.T) {
+	s := &createStore{}
+	r := &models.Link{}
+	err := short.Edit(context.Background(), s, short.OpUpdate, "", r, short.Given{})
+	if err == nil {
+		t.Fatal("update with no alias succeeded")
+	}
+	if s.stored != nil || s.updated != nil {
+		t.Fatalf("wrote a link: stored %v updated %v", s.stored, s.updated)
+	}
+	if r.Alias != "" {
+		t.Fatalf("alias = %q, an update minted one", r.Alias)
 	}
 }

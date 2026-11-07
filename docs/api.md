@@ -117,7 +117,7 @@ Creates, updates and deletes links. Requires a session.
   "alias": "awesome-link",  // which link to act on; for update it is the
                             // existing alias, and data.alias may rename it
   "data": {
-    "alias": "awesome-link",
+    "alias": "awesome-link", // omit on create to allocate a random alias
     "url": "https://github.com/rukins",
     "private": false,       // hidden from the public index
     "trust": true,          // false shows a warning before leaving the site
@@ -126,7 +126,9 @@ Creates, updates and deletes links. Requires a session.
 }
 ```
 
-A refusal answers with a status and `{"message": "..."}` explaining it.
+Leaving `data.alias` empty on create allocates a random one. A successful
+create answers `{"alias":"<the stored alias>"}` and no message. A refusal
+answers with a status and `{"message": "..."}` explaining it.
 
 ## GET /x/{path}
 

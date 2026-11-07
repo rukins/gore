@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rukins/gore/internal/cache"
 	"github.com/rukins/gore/internal/config"
 	"github.com/rukins/gore/internal/db"
 	"github.com/rukins/gore/internal/models"
@@ -185,5 +186,69 @@ func TestUnauthorizedChangeKeepsItsOwnAnswer(t *testing.T) {
 	s.sHandlerPost(w, httptest.NewRequest(http.MethodPost, "/s/", strings.NewReader(`{"op":"create","alias":"x","data":{}}`)))
 	if w.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want the %d handleAuth sets", w.Code, http.StatusForbidden)
+	}
+}
+
+// savingStore records the link a create stored.
+type savingStore struct {
+	db.Store
+	saved *models.Link
+}
+
+func (s *savingStore) StoreAlias(_ context.Context, r *models.Link) error {
+	c := *r
+	s.saved = &c
+	return nil
+}
+
+func TestCreateWithoutAliasReturnsOne(t *testing.T) {
+	saved := config.Conf
+	t.Cleanup(func() { config.Conf = saved })
+	config.Conf.Auth.Enable = config.None
+
+	store := &savingStore{}
+	s := &server{db: store, cache: cache.NewLRU(true)}
+
+	w := httptest.NewRecorder()
+	body := `{"op":"create","data":{"url":"https://example.com"}}`
+	s.sHandlerPost(w, httptest.NewRequest(http.MethodPost, "/s/", strings.NewReader(body)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body)
+	}
+	var out shortOutput
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Message != "" {
+		t.Fatalf("message = %q, want none", out.Message)
+	}
+	if store.saved == nil || out.Alias == "" || out.Alias != store.saved.Alias {
+		t.Fatalf("alias = %q, stored %v", out.Alias, store.saved)
+	}
+	if len(out.Alias) != 6 {
+		t.Fatalf("alias len = %d, want 6", len(out.Alias))
+	}
+}
+
+func TestCreateKeepsNamedAlias(t *testing.T) {
+	saved := config.Conf
+	t.Cleanup(func() { config.Conf = saved })
+	config.Conf.Auth.Enable = config.None
+
+	store := &savingStore{}
+	s := &server{db: store, cache: cache.NewLRU(true)}
+
+	w := httptest.NewRecorder()
+	body := `{"op":"create","alias":"blog","data":{"alias":"blog","url":"https://example.com"}}`
+	s.sHandlerPost(w, httptest.NewRequest(http.MethodPost, "/s/", strings.NewReader(body)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body)
+	}
+	var out shortOutput
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Alias != "blog" || store.saved == nil || store.saved.Alias != "blog" {
+		t.Fatalf("alias = %q, stored %v, want blog", out.Alias, store.saved)
 	}
 }

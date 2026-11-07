@@ -35,7 +35,7 @@ const LinkForm = ({ record, onClose, onSaved }) => {
       return
     }
     setBusy(true)
-    const err = await save(creating ? 'create' : 'update', record?.alias, {
+    const result = await save(creating ? 'create' : 'update', record?.alias, {
       alias: v.alias,
       url: v.url,
       private: v.private === 'private',
@@ -43,13 +43,13 @@ const LinkForm = ({ record, onClose, onSaved }) => {
       valid_from: rfc3339(v.valid_from),
     })
     setBusy(false)
-    if (err) {
+    if (result.error) {
       // The refusal is shown where the fields are, so it can be fixed
       // without the dialog closing.
-      setError(err)
+      setError(result.error)
       return
     }
-    onSaved(v.alias)
+    onSaved(result.alias || v.alias)
   }
 
   return (
@@ -86,10 +86,18 @@ const LinkForm = ({ record, onClose, onSaved }) => {
         <Form.Item
           name="alias"
           label="Alias"
-          extra="The path visitors use. Slashes are allowed, so news/2026 works."
-          rules={[{ required: true, message: 'An alias is required' }]}
+          extra={
+            creating
+              ? 'Leave empty for a random alias. Slashes are allowed, so news/2026 works.'
+              : 'The path visitors use. Slashes are allowed, so news/2026 works.'
+          }
+          rules={
+            creating ? [] : [{ required: true, message: 'An alias is required' }]
+          }
         >
-          <Input placeholder="blog" />
+          <Input
+            placeholder={creating ? 'Leave empty for a random alias' : 'blog'}
+          />
         </Form.Item>
 
         <Form.Item

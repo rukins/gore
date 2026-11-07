@@ -11,21 +11,23 @@ const post = async (body) => {
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  // The server answers a refusal with a message worth showing, and a
-  // success with nothing. The message is read whatever the status says:
-  // a refusal has been arriving as 200, and taking that for a success
-  // told the operator a link was created when it was not.
-  let message = ''
+  // A message is a refusal, whatever the status. A refusal has arrived
+  // as 200, and taking that for a success told the operator a link was
+  // created when it was not. An alias with no message is the link a
+  // create stored, including one the server chose.
+  let payload = {}
   try {
-    message = (await resp.json()).message || ''
+    payload = (await resp.json()) || {}
   } catch {
     // No body, or not JSON: nothing was said.
   }
-  if (message) {
-    return message
+  if (payload.message) {
+    return { error: payload.message, alias: null }
   }
-  // A transport failure has no message, so say which one happened.
-  return resp.ok ? null : `request failed (${resp.status})`
+  if (!resp.ok) {
+    return { error: `request failed (${resp.status})`, alias: null }
+  }
+  return { error: null, alias: payload.alias || null }
 }
 
 const get = async (devMode, params) => {
@@ -61,4 +63,5 @@ export const fetchStat = (devMode, alias, stat, t0, t1) =>
 
 export const save = (op, alias, data) => post({ op, alias, data })
 
-export const remove = (alias) => post({ op: 'delete', alias })
+export const remove = async (alias) =>
+  (await post({ op: 'delete', alias })).error

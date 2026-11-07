@@ -139,6 +139,7 @@ which is how a deployment without a browser adds one:
 
 ```sh
 $ gore -op create -a blog -l https://blog.example.com -trust
+$ gore -l https://blog.example.com   # alias is chosen for you
 $ gore -op update -a blog -l https://blog.example.com/new
 $ gore -op fetch  -a blog
 $ gore -op delete -a blog

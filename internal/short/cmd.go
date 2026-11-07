@@ -6,11 +6,18 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 
 	"github.com/rukins/gore/internal/config"
 	"github.com/rukins/gore/internal/db"
 	"github.com/rukins/gore/internal/models"
+	"github.com/rukins/gore/internal/utils"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	randomAliasLen   = 6
+	randomAliasTries = 8
 )
 
 var (
@@ -65,12 +72,16 @@ func Edit(ctx context.Context, s db.Store, operate Op, a string, r *models.Link,
 
 	switch operate {
 	case OpCreate:
-		if !Validity.MatchString(r.Alias) {
+		// No alias means "choose one". A name that was given is stored
+		// as given, including when that name is already taken.
+		if strings.TrimSpace(r.Alias) == "" {
+			err = assignAlias(ctx, s, r)
+		} else if !Validity.MatchString(r.Alias) {
 			err = ErrInvalidAlias
-			return
+		} else {
+			r.CreatedBy = r.UpdatedBy
+			err = s.StoreAlias(ctx, r)
 		}
-		r.CreatedBy = r.UpdatedBy
-		err = s.StoreAlias(ctx, r)
 		if err != nil {
 			return
 		}
@@ -134,4 +145,23 @@ func Edit(ctx context.Context, s db.Store, operate Op, a string, r *models.Link,
 		log.Printf("\n%v\n", string(b))
 	}
 	return
+}
+
+// assignAlias picks an unused short alias and stores r under it.
+//
+// StoreAlias is the check that the alias is free. Two creates can draw
+// the same letters, and only the insert knows which one landed. A taken
+// alias is drawn again. Any other failure stops, because drawing again
+// would not change it.
+func assignAlias(ctx context.Context, s db.Store, r *models.Link) error {
+	r.CreatedBy = r.UpdatedBy
+	var err error
+	for range randomAliasTries {
+		r.Alias = utils.Randstr(randomAliasLen)
+		err = s.StoreAlias(ctx, r)
+		if !errors.Is(err, db.ErrAliasExists) {
+			return err
+		}
+	}
+	return err
 }
