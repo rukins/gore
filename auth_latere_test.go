@@ -216,7 +216,7 @@ func TestCallbackURLsPerSite(t *testing.T) {
 
 	got := callbackURLs("/s/")
 	want := map[string]string{
-		"example.com":   "https://example.com/s/.auth/callback",
+		"example.com":    "https://example.com/s/.auth/callback",
 		"examplepkg.com": "https://examplepkg.com/s/.auth/callback",
 	}
 	if len(got) != len(want) {
@@ -278,7 +278,7 @@ func TestClientForSelectsTheSite(t *testing.T) {
 	primary := &oidc.Client{}
 	second := &oidc.Client{}
 	a := &latereAuth{clients: map[string]*oidc.Client{
-		"example.com":   primary,
+		"example.com":    primary,
 		"examplepkg.com": second,
 	}}
 
