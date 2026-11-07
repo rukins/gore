@@ -1,4 +1,4 @@
-package db
+package postgres
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 // Only visits to aliases that are links are counted, for the reason
 // nonBotVisits gives: a fifth of the rows belong to the index page or to
 // aliases that never resolved.
-func (db *pgStore) StatOverview(
+func (db *store) StatOverview(
 	ctx context.Context,
 	host string,
 	start, end time.Time,
@@ -34,7 +34,7 @@ func (db *pgStore) StatOverview(
 		FROM links l
 		JOIN visits v ON v.host = l.host AND v.alias = l.alias
 		WHERE l.host = $1 AND v.time >= $2 AND v.time < $3`,
-		host, start, end,
+		host, micros(start), micros(end),
 	).Scan(&o.Links, &o.Visits, &o.People, &o.Bots)
 	if err != nil {
 		return models.Overview{}, fmt.Errorf("failed to total visits: %w", err)
@@ -45,13 +45,13 @@ func (db *pgStore) StatOverview(
 	// filling them with zeroes is the caller's business, since only it
 	// knows how wide the chart is.
 	rows, err := db.pool.Query(ctx, `
-		SELECT to_char(date_trunc('day', v.time), 'YYYY-MM-DD') AS day,
+		SELECT to_char(to_timestamp(v.time / 1000000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
 		       COUNT(*) AS pv,
 		       COUNT(DISTINCT v.ip) AS uv
 		FROM links l
 		JOIN visits v ON v.host = l.host AND v.alias = l.alias
 		WHERE l.host = $1 AND v.time >= $2 AND v.time < $3 AND NOT v.is_bot
-		GROUP BY 1 ORDER BY 1`, host, start, end)
+		GROUP BY 1 ORDER BY 1`, host, micros(start), micros(end))
 	if err != nil {
 		return models.Overview{}, fmt.Errorf("failed to read the series: %w", err)
 	}
@@ -77,7 +77,7 @@ func (db *pgStore) StatOverview(
 // page of twenty links twenty round trips for a handful of numbers each,
 // which is the kind of cost that only shows up once the page is in front
 // of someone on a slow connection.
-func (db *pgStore) StatDaily(
+func (db *store) StatDaily(
 	ctx context.Context,
 	host string,
 	aliases []string,
@@ -89,7 +89,7 @@ func (db *pgStore) StatDaily(
 
 	rows, err := db.pool.Query(ctx, `
 		SELECT l.alias,
-		       to_char(date_trunc('day', v.time), 'YYYY-MM-DD') AS day,
+		       to_char(to_timestamp(v.time / 1000000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
 		       COUNT(*) AS pv,
 		       COUNT(DISTINCT v.ip) AS uv
 		FROM links l
@@ -97,7 +97,7 @@ func (db *pgStore) StatDaily(
 		WHERE l.host = $1 AND l.alias = ANY($2)
 		  AND v.time >= $3 AND v.time < $4 AND NOT v.is_bot
 		GROUP BY l.alias, 2
-		ORDER BY l.alias, 2`, host, aliases, start, end)
+		ORDER BY l.alias, 2`, host, aliases, micros(start), micros(end))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read daily counts: %w", err)
 	}

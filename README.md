@@ -37,14 +37,9 @@ readers.
 
 ## Getting started
 
-gore needs PostgreSQL. Create a database and a role for it:
+gore stores links and visits in a SQLite file by default. The file and its directory are created on startup. PostgreSQL is also supported.
 
-```sql
-CREATE ROLE gore LOGIN PASSWORD 'secret';
-CREATE DATABASE gore OWNER gore;
-```
-
-Copy the default configuration and point it at that database:
+Copy the default configuration. It already names the file:
 
 ```sh
 $ mkdir -p data && cp internal/config/config.yml data/goreconf.yml
@@ -53,10 +48,21 @@ $ mkdir -p data && cp internal/config/config.yml data/goreconf.yml
 ```yaml
 host: https://example.com
 addr: :80
+store: sqlite://data/gore.db
+```
+
+To use PostgreSQL instead, create a database and a role and point `store` at them:
+
+```sql
+CREATE ROLE gore LOGIN PASSWORD 'secret';
+CREATE DATABASE gore OWNER gore;
+```
+
+```yaml
 store: postgres://gore:secret@localhost:5432/gore?sslmode=disable
 ```
 
-Then run it, with Docker:
+Then run it, with Docker. Compose keeps `data/` on the host, so the SQLite file survives a recreate, and it does not start PostgreSQL:
 
 ```sh
 $ docker network create traefik_proxy

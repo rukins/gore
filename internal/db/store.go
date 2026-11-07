@@ -3,18 +3,25 @@ package db
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
+	"github.com/rukins/gore/internal/db/migrate"
+	"github.com/rukins/gore/internal/db/postgres"
+	"github.com/rukins/gore/internal/db/sqlite"
 	"github.com/rukins/gore/internal/models"
 )
 
+// ErrAliasExists reports that (host, alias) is taken, so a caller can
+// tell "already there" from "broken" without matching on message text.
+// Both engines return this value. Compare it directly; it is not wrapped.
+var ErrAliasExists = migrate.ErrAliasExists
+
 // Store is the persistence gore runs on.
 //
-// It has one implementation, over PostgreSQL. The interface stays because
-// it is the seam the handler tests substitute, so recording a visit and
-// setting its cookie can be tested without a database.
+// PostgreSQL and SQLite both implement it. The interface is also the seam
+// the handler tests substitute, so recording a visit and setting its cookie
+// can be tested without a database.
 //
 // A link is identified by the pair (host, alias): one process serves
 // several hosts and the same alias means different things on each. Methods
@@ -67,29 +74,20 @@ type Store interface {
 func NewStore(ctx context.Context, uri string) (Store, error) {
 	scheme, _, ok := strings.Cut(uri, "://")
 	if !ok {
-		return nil, fmt.Errorf("store %q has no scheme, want postgres://", Redact(uri))
+		return nil, fmt.Errorf("store %q has no scheme, want postgres:// or sqlite://", Redact(uri))
 	}
 
 	switch scheme {
 	case "postgres", "postgresql":
-		return newPostgresStore(ctx, uri)
+		return postgres.Open(ctx, uri)
+	case "sqlite":
+		return sqlite.Open(ctx, uri)
 	default:
-		return nil, fmt.Errorf("unsupported store scheme %q, want postgres://", scheme)
+		return nil, fmt.Errorf("unsupported store scheme %q, want postgres:// or sqlite://", scheme)
 	}
 }
 
 // Redact removes the password from a store URI before it reaches a log
 // line or an error message, both of which are read by people who should
 // not be shown the database credentials.
-func Redact(uri string) string {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return "invalid store uri"
-	}
-	if u.User != nil {
-		if _, ok := u.User.Password(); ok {
-			u.User = url.UserPassword(u.User.Username(), "xxxxx")
-		}
-	}
-	return u.String()
-}
+func Redact(uri string) string { return migrate.Redact(uri) }

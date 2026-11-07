@@ -1,100 +1,78 @@
-package db
+package postgres
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rukins/gore/internal/db/migrate"
 	"github.com/rukins/gore/internal/models"
 	"uuid"
 )
 
-// pgStore is the PostgreSQL backend.
-type pgStore struct {
+// store is the PostgreSQL backend.
+type store struct {
 	pool *pgxpool.Pool
 }
-
-// ErrAliasExists reports that (host, alias) is taken, so a caller can
-// tell "already there" from "broken" without matching on message text.
-var ErrAliasExists = errors.New("alias already existed")
 
 // uniqueViolation is the SQLSTATE for a unique constraint breach.
 const uniqueViolation = "23505"
 
-func newPostgresStore(ctx context.Context, uri string) (*pgStore, error) {
-	cfg, err := pgxpool.ParseConfig(uri)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse store uri: %w", err)
-	}
+// idAttempts is how many times an insert retries a primary-key collision.
+// Two processes can pick the same microsecond. The next attempt asks for
+// a new id. An alias collision is not retried.
+const idAttempts = 8
 
-	// Pin the session time zone.
-	//
-	// time is timestamptz, and date_trunc on a timestamptz truncates in
-	// the session's time zone, so the hourly buckets StatVisitHist
-	// returns would shift with a server setting nothing in this
-	// repository controls. The instance is shared with another service,
-	// so the zone is set here rather than assumed.
-	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC"
+type uniqueKind int
 
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to database: %w", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("cannot connect to database: %w", err)
-	}
+const (
+	uniqueNone uniqueKind = iota
+	uniqueAlias
+	uniqueID
+)
 
-	// A store without its schema must not serve traffic, so a failure
-	// here is returned rather than logged and stepped over.
-	if err := migrate(ctx, pool); err != nil {
-		pool.Close()
-		return nil, err
-	}
-
-	log.Printf("connected to %v", Redact(uri))
-	return &pgStore{pool: pool}, nil
-}
-
-func (db *pgStore) Close() error {
+func (db *store) Close() error {
 	db.pool.Close()
 	return nil
 }
 
-func (db *pgStore) StoreAlias(ctx context.Context, r *models.Redir) error {
+func (db *store) StoreAlias(ctx context.Context, r *models.Redir) error {
 	// valid_from is stored as given, including the zero value. short.go
 	// treats a zero time as "valid since always"; substituting the
 	// current time here would make it "valid from now", which is a
 	// different link.
-	now := time.Now().UTC()
-
-	var id int64
-	err := db.pool.QueryRow(ctx, `
-		INSERT INTO links
-			(host, alias, url, private, trust, valid_from,
-			 created_by, updated_by, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
-		RETURNING id`,
-		r.Host, r.Alias, r.URL, r.Private, r.Trust, r.ValidFrom,
-		r.CreatedBy, r.UpdatedBy, now,
-	).Scan(&id)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
-			return ErrAliasExists
+	now := micros(time.Now().UTC())
+	var err error
+	for range idAttempts {
+		id := migrate.NextID()
+		r.ID = strconv.FormatInt(id, 10)
+		_, err = db.pool.Exec(ctx, `
+			INSERT INTO links
+				(id, host, alias, url, private, trust, valid_from,
+				 created_by, updated_by, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+			id, r.Host, r.Alias, r.URL, r.Private, r.Trust, micros(r.ValidFrom),
+			r.CreatedBy, r.UpdatedBy, now,
+		)
+		if err == nil {
+			return nil
+		}
+		switch pgUnique(err) {
+		case uniqueAlias:
+			return migrate.ErrAliasExists
+		case uniqueID:
+			continue
 		}
 		return fmt.Errorf("failed to insert given redirect: %w", err)
 	}
-	r.ID = strconv.FormatInt(id, 10)
-	return nil
+	return fmt.Errorf("failed to insert given redirect: %w", err)
 }
 
-func (db *pgStore) UpdateAlias(ctx context.Context, r *models.Redir) error {
+func (db *store) UpdateAlias(ctx context.Context, r *models.Redir) error {
 	if r.ID == "" {
 		return errors.New("missing document ID")
 	}
@@ -109,12 +87,11 @@ func (db *pgStore) UpdateAlias(ctx context.Context, r *models.Redir) error {
 			valid_from = $6, updated_by = $7, updated_at = $8
 		WHERE id = $1`,
 		id, r.Alias, r.URL, r.Private, r.Trust,
-		r.ValidFrom, r.UpdatedBy, time.Now().UTC(),
+		micros(r.ValidFrom), r.UpdatedBy, micros(time.Now().UTC()),
 	)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
-			return ErrAliasExists
+		if pgUnique(err) == uniqueAlias {
+			return migrate.ErrAliasExists
 		}
 		return fmt.Errorf("failed to update alias %s: %v", r.Alias, err)
 	}
@@ -127,7 +104,7 @@ func (db *pgStore) UpdateAlias(ctx context.Context, r *models.Redir) error {
 // DeleteAlias removes the link and leaves its visits in place. The visits
 // happened, and the alias may be created again later; the stat queries
 // join links, so an orphaned history reappears if it is.
-func (db *pgStore) DeleteAlias(ctx context.Context, host, alias string) error {
+func (db *store) DeleteAlias(ctx context.Context, host, alias string) error {
 	_, err := db.pool.Exec(ctx,
 		`DELETE FROM links WHERE host = $1 AND alias = $2`, host, alias)
 	if err != nil {
@@ -136,21 +113,25 @@ func (db *pgStore) DeleteAlias(ctx context.Context, host, alias string) error {
 	return nil
 }
 
-func (db *pgStore) FetchAlias(ctx context.Context, host, alias string) (*models.Redir, error) {
+func (db *store) FetchAlias(ctx context.Context, host, alias string) (*models.Redir, error) {
 	var (
-		r  models.Redir
-		id int64
+		r                           models.Redir
+		id                          int64
+		validFrom, created, updated int64
 	)
 	err := db.pool.QueryRow(ctx, `
 		SELECT id, host, alias, url, private, trust, valid_from,
 		       created_by, updated_by, created_at, updated_at
 		FROM links WHERE host = $1 AND alias = $2`, host, alias,
 	).Scan(&id, &r.Host, &r.Alias, &r.URL, &r.Private, &r.Trust,
-		&r.ValidFrom, &r.CreatedBy, &r.UpdatedBy, &r.CreatedAt, &r.UpdatedAt)
+		&validFrom, &r.CreatedBy, &r.UpdatedBy, &created, &updated)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find alias %s: %v", alias, err)
 	}
 	r.ID = strconv.FormatInt(id, 10)
+	r.ValidFrom = fromMicros(validFrom)
+	r.CreatedAt = fromMicros(created)
+	r.UpdatedAt = fromMicros(updated)
 	return &r, nil
 }
 
@@ -161,7 +142,7 @@ func (db *pgStore) FetchAlias(ctx context.Context, host, alias string) (*models.
 //
 // The counts come from a LEFT JOIN, so a link nobody has visited reports
 // pv=0, uv=0 rather than being left out of the listing.
-func (db *pgStore) FetchAliasAll(
+func (db *store) FetchAliasAll(
 	ctx context.Context,
 	host string,
 	public bool,
@@ -213,15 +194,19 @@ func (db *pgStore) FetchAliasAll(
 	var rs []models.RedirIndex
 	for rows.Next() {
 		var (
-			r  models.RedirIndex
-			id int64
+			r                           models.RedirIndex
+			id                          int64
+			validFrom, created, updated int64
 		)
 		if err := rows.Scan(&id, &r.Host, &r.Alias, &r.URL, &r.Private,
-			&r.Trust, &r.ValidFrom, &r.CreatedBy, &r.UpdatedBy,
-			&r.CreatedAt, &r.UpdatedAt, &r.PV, &r.UV); err != nil {
+			&r.Trust, &validFrom, &r.CreatedBy, &r.UpdatedBy,
+			&created, &updated, &r.PV, &r.UV); err != nil {
 			return nil, 0, fmt.Errorf("cannot scan link: %w", err)
 		}
 		r.ID = strconv.FormatInt(id, 10)
+		r.ValidFrom = fromMicros(validFrom)
+		r.CreatedAt = fromMicros(created)
+		r.UpdatedAt = fromMicros(updated)
 		rs = append(rs, r)
 	}
 	if err := rows.Err(); err != nil {
@@ -237,7 +222,7 @@ func (db *pgStore) FetchAliasAll(
 // holds values such as "-1%20OR%202%2B471-471-1=0%2B0%2B0%2B1%20--%20",
 // which are scanner probes that were stored verbatim and echoed back in
 // the Set-Cookie header.
-func (db *pgStore) RecordVisit(ctx context.Context, v *models.Visit) (string, error) {
+func (db *store) RecordVisit(ctx context.Context, v *models.Visit) (string, error) {
 	vid, err := uuid.Parse(v.VisitorID)
 	if err != nil {
 		vid = uuid.New()
@@ -250,17 +235,24 @@ func (db *pgStore) RecordVisit(ctx context.Context, v *models.Visit) (string, er
 		when = time.Now().UTC()
 	}
 
-	_, err = db.pool.Exec(ctx, `
-		INSERT INTO visits
-			(host, alias, visitor_id, ip, ua, referer,
-			 referer_host, browser, os, device, is_bot, time)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		v.Host, v.Alias, vid, v.IP, v.UA, v.Referer,
-		v.RefererHost, v.Browser, v.OS, v.Device, v.IsBot, when)
-	if err != nil {
+	for range idAttempts {
+		id := migrate.NextID()
+		_, err = db.pool.Exec(ctx, `
+			INSERT INTO visits
+				(id, host, alias, visitor_id, ip, ua, referer,
+				 referer_host, browser, os, device, is_bot, time)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+			id, v.Host, v.Alias, v.VisitorID, v.IP, v.UA, v.Referer,
+			v.RefererHost, v.Browser, v.OS, v.Device, v.IsBot, micros(when))
+		if err == nil {
+			return v.VisitorID, nil
+		}
+		if pgUnique(err) == uniqueID {
+			continue
+		}
 		return "", fmt.Errorf("failed to insert record: %w", err)
 	}
-	return v.VisitorID, nil
+	return "", fmt.Errorf("failed to insert record: %w", err)
 }
 
 // nonBotVisits is the FROM clause the displayed statistics share.
@@ -307,7 +299,7 @@ var column = map[string]string{
 }
 
 // StatGroup counts non-bot visits grouped by one derived column.
-func (db *pgStore) StatGroup(
+func (db *store) StatGroup(
 	ctx context.Context,
 	host, alias, by string,
 	start, end time.Time,
@@ -321,7 +313,7 @@ func (db *pgStore) StatGroup(
 		SELECT CASE WHEN v.`+column[by]+` = '' THEN '`+empty+`'
 		            ELSE v.`+column[by]+` END AS name,
 		       COUNT(*) AS count`+nonBotVisits+`
-		GROUP BY 1 ORDER BY count DESC, name`, host, alias, start, end)
+		GROUP BY 1 ORDER BY count DESC, name`, host, alias, micros(start), micros(end))
 	if err != nil {
 		return nil, fmt.Errorf("failed to count %v: %w", by, err)
 	}
@@ -342,7 +334,7 @@ func (db *pgStore) StatGroup(
 }
 
 // StatBots reports the traffic the other statistics leave out.
-func (db *pgStore) StatBots(
+func (db *store) StatBots(
 	ctx context.Context,
 	host, alias string,
 	start, end time.Time,
@@ -354,7 +346,7 @@ func (db *pgStore) StatBots(
 		JOIN visits v ON v.host = l.host AND v.alias = l.alias
 		WHERE l.host = $1 AND l.alias = $2
 		  AND v.time >= $3 AND v.time < $4
-		  AND v.is_bot`, host, alias, start, end).Scan(&b.PV, &b.UV)
+		  AND v.is_bot`, host, alias, micros(start), micros(end)).Scan(&b.PV, &b.UV)
 	if err != nil {
 		return models.BotStat{}, fmt.Errorf("failed to count bots: %w", err)
 	}
@@ -366,7 +358,7 @@ func (db *pgStore) StatBots(
 // Nothing on the dashboard draws this. It is how a suspicious entry in the
 // grouped statistics gets looked at, which needs the string the grouping
 // was derived from.
-func (db *pgStore) StatUA(
+func (db *store) StatUA(
 	ctx context.Context,
 	host, alias string,
 	start, end time.Time,
@@ -378,7 +370,7 @@ func (db *pgStore) StatUA(
 		JOIN visits v ON v.host = l.host AND v.alias = l.alias
 		WHERE l.host = $1 AND l.alias = $2
 		  AND v.time >= $3 AND v.time < $4
-		GROUP BY 1 ORDER BY count DESC, ua`, host, alias, start, end)
+		GROUP BY 1 ORDER BY count DESC, ua`, host, alias, micros(start), micros(end))
 	if err != nil {
 		return nil, fmt.Errorf("failed to count ua: %w", err)
 	}
@@ -400,16 +392,16 @@ func (db *pgStore) StatUA(
 
 // StatVisitHist buckets by hour, over non-bot visits. The index listing
 // still counts all traffic; StatBots reports the difference.
-func (db *pgStore) StatVisitHist(
+func (db *store) StatVisitHist(
 	ctx context.Context,
 	host, alias string,
 	start, end time.Time,
 ) ([]models.TimeHist, error) {
 	rows, err := db.pool.Query(ctx, `
-		SELECT date_trunc('hour', v.time) AS bucket,
+		SELECT date_trunc('hour', to_timestamp(v.time / 1000000.0)) AS bucket,
 		       COUNT(*) AS pv,
 		       COUNT(DISTINCT v.ip) AS uv`+nonBotVisits+`
-		GROUP BY bucket ORDER BY bucket`, host, alias, start, end)
+		GROUP BY bucket ORDER BY bucket`, host, alias, micros(start), micros(end))
 	if err != nil {
 		return nil, fmt.Errorf("failed to count time hist: %w", err)
 	}
@@ -435,7 +427,7 @@ func (db *pgStore) StatVisitHist(
 // carrying visitor_id is a session cookie and RecordVisit mints one
 // whenever a request arrives without it, so 277,318 of 348,356 recorded
 // visits invented a visitor. It counts visits, not people.
-func (db *pgStore) StatVisit(
+func (db *store) StatVisit(
 	ctx context.Context,
 	host string,
 	aliases []string,
@@ -472,4 +464,29 @@ func (db *pgStore) StatVisit(
 	return rs, nil
 }
 
-var _ Store = (*pgStore)(nil)
+// pgUnique reports which unique constraint failed.
+//
+// links_pkey and visits_pkey are PostgreSQL's names for the primary keys.
+// links_host_alias_key is its name for UNIQUE (host, alias). Only the
+// latter is ErrAliasExists. A primary-key collision is retried with a
+// new id.
+func pgUnique(err error) uniqueKind {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != uniqueViolation {
+		return uniqueNone
+	}
+	switch pgErr.ConstraintName {
+	case "links_host_alias_key":
+		return uniqueAlias
+	case "links_pkey", "visits_pkey":
+		return uniqueID
+	default:
+		return uniqueNone
+	}
+}
+
+// Timestamps are Unix microseconds, UTC. The column is an integer, so
+// time.Time is not passed through to the driver.
+func micros(t time.Time) int64 { return t.UTC().UnixMicro() }
+
+func fromMicros(n int64) time.Time { return time.UnixMicro(n).UTC() }

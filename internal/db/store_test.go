@@ -2,14 +2,19 @@ package db_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rukins/gore/internal/db"
 	"github.com/rukins/gore/internal/models"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -32,27 +37,71 @@ const (
 		"AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 )
 
-// storeURI names the database the store tests run against. They run
-// against a real PostgreSQL rather than a mock: the queries are the thing
+// postgresURI names the PostgreSQL the store tests run against. They run
+// against a real database rather than a mock: the queries are the thing
 // under test, and a mock would only assert that they were called.
-func storeURI() string {
+func postgresURI() string {
 	if uri := os.Getenv("GORE_TEST_POSTGRES"); uri != "" {
 		return uri
 	}
 	return "postgres://gore:gore@127.0.0.1:5432/gore_test?sslmode=disable"
 }
 
-// open connects, empties the store and seeds one public alias, so every
+// sqliteURI is a fresh file. :memory: would give each connection its own
+// empty database, and several tests open a second connection.
+func sqliteURI(t testing.TB) string {
+	t.Helper()
+	return "sqlite://" + filepath.Join(t.TempDir(), "gore.db")
+}
+
+// The URI a subtest opened, so a helper called from inside run can find
+// the same database. Tests in one package do not run in parallel.
+var (
+	uriMu    sync.Mutex
+	boundURI = map[string]string{}
+)
+
+func bindURI(t testing.TB, uri string) {
+	t.Helper()
+	uriMu.Lock()
+	boundURI[t.Name()] = uri
+	uriMu.Unlock()
+	t.Cleanup(func() {
+		uriMu.Lock()
+		delete(boundURI, t.Name())
+		uriMu.Unlock()
+	})
+}
+
+func storeURI(t testing.TB) string {
+	t.Helper()
+	uriMu.Lock()
+	defer uriMu.Unlock()
+	uri, ok := boundURI[t.Name()]
+	if !ok {
+		t.Fatal("no store uri bound for this test")
+	}
+	return uri
+}
+
+// openURI connects, empties the store and seeds one public alias, so every
 // test starts from a known state rather than from whatever the local
 // database happens to hold.
-func open(ctx context.Context, t testing.TB) db.Store {
+func openURI(ctx context.Context, t testing.TB, uri string) db.Store {
 	t.Helper()
-
-	s, err := db.NewStore(ctx, storeURI())
-	if err != nil {
-		t.Skipf("cannot connect to store: %v", err)
+	bindURI(t, uri)
+	if strings.HasPrefix(uri, "postgres") {
+		preparePostgres(ctx, t, uri)
 	}
-	reset(ctx, t)
+
+	s, err := db.NewStore(ctx, uri)
+	if err != nil {
+		if strings.HasPrefix(uri, "postgres") {
+			t.Skipf("cannot connect to store: %v", err)
+		}
+		t.Fatalf("cannot connect to store: %v", err)
+	}
+	reset(ctx, t, uri)
 
 	err = s.StoreAlias(ctx, &models.Redir{
 		Host:    khost,
@@ -70,10 +119,49 @@ func open(ctx context.Context, t testing.TB) db.Store {
 
 // reset empties the store. The tests count rows, so leftovers from an
 // earlier run would make them pass or fail for the wrong reason.
-func reset(ctx context.Context, t testing.TB) {
+func reset(ctx context.Context, t testing.TB, uri string) {
 	t.Helper()
+	if strings.HasPrefix(uri, "sqlite:") {
+		resetSQLite(ctx, t, uri)
+		return
+	}
+	resetPostgres(ctx, t, uri)
+}
 
-	conn, err := pgx.Connect(ctx, storeURI())
+// preparePostgres drops a database whose visits.time is not bigint.
+//
+// Version 1 was replaced in place. A database that already recorded it
+// will not apply the new file, and the old timestamptz columns would then
+// be read as integers. Open must not drop a database it did not create;
+// only tests do this, and only when the column is missing or the wrong type.
+func preparePostgres(ctx context.Context, t testing.TB, uri string) {
+	t.Helper()
+	conn, err := pgx.Connect(ctx, uri)
+	if err != nil {
+		t.Skipf("cannot connect to postgres: %v", err)
+	}
+	defer conn.Close(ctx)
+
+	var dataType string
+	err = conn.QueryRow(ctx, `
+		SELECT data_type FROM information_schema.columns
+		WHERE table_schema = 'public'
+		  AND table_name = 'visits' AND column_name = 'time'`).Scan(&dataType)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("cannot read visits.time: %v", err)
+	}
+	if err == nil && dataType == "bigint" {
+		return
+	}
+	if _, err := conn.Exec(ctx,
+		`DROP TABLE IF EXISTS visits, links, schema_migrations`); err != nil {
+		t.Fatalf("cannot drop old schema: %v", err)
+	}
+}
+
+func resetPostgres(ctx context.Context, t testing.TB, uri string) {
+	t.Helper()
+	conn, err := pgx.Connect(ctx, uri)
 	if err != nil {
 		t.Skipf("cannot connect to postgres: %v", err)
 	}
@@ -84,11 +172,35 @@ func reset(ctx context.Context, t testing.TB) {
 	}
 }
 
-// run executes fn against a freshly seeded store.
+func resetSQLite(ctx context.Context, t testing.TB, uri string) {
+	t.Helper()
+	path := strings.TrimPrefix(uri, "sqlite://")
+	s, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, q := range []string{
+		`DELETE FROM visits`,
+		`DELETE FROM links`,
+		`DELETE FROM sqlite_sequence`,
+	} {
+		if _, err := s.ExecContext(ctx, q); err != nil && !strings.Contains(err.Error(), "no such table") {
+			t.Fatalf("cannot reset sqlite: %v", err)
+		}
+	}
+}
+
+// run executes fn against a freshly seeded store, once per engine.
 func run(t *testing.T, fn func(t *testing.T, s db.Store)) {
 	t.Helper()
 	ctx := context.Background()
-	fn(t, open(ctx, t))
+	t.Run("sqlite", func(t *testing.T) {
+		fn(t, openURI(ctx, t, sqliteURI(t)))
+	})
+	t.Run("postgres", func(t *testing.T) {
+		fn(t, openURI(ctx, t, postgresURI()))
+	})
 }
 
 func TestStoreAliasRejectsDuplicate(t *testing.T) {
@@ -468,7 +580,7 @@ func TestStatRangeExcludesEnd(t *testing.T) {
 
 func BenchmarkFetchAliasAll(b *testing.B) {
 	ctx := context.Background()
-	s := open(ctx, b)
+	s := openURI(ctx, b, postgresURI())
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -481,25 +593,28 @@ func BenchmarkFetchAliasAll(b *testing.B) {
 
 // TestHistBucketsAreUTC pins the hour boundary.
 //
-// time is timestamptz and date_trunc truncates in the session time zone,
-// so an instance configured for another zone would shift every bucket.
-// The store sets the session zone rather than inheriting it, and this
-// asks for another zone in the URI to prove the setting wins.
+// The bucket is date_trunc('hour', to_timestamp(v.time / 1000000.0)).
+// to_timestamp is UTC, but date_trunc still truncates in the session
+// time zone, so an instance configured for another zone would shift
+// every bucket. The store sets the session zone rather than inheriting
+// it, and this asks for another zone in the URI to prove the setting wins.
 func TestHistBucketsAreUTC(t *testing.T) {
 	ctx := context.Background()
 
-	uri := storeURI()
+	uri := postgresURI()
 	if strings.Contains(uri, "?") {
 		uri += "&timezone=Asia/Kolkata"
 	} else {
 		uri += "?timezone=Asia/Kolkata"
 	}
+	bindURI(t, uri)
+	preparePostgres(ctx, t, uri)
 	s, err := db.NewStore(ctx, uri)
 	if err != nil {
 		t.Skipf("cannot connect to postgres: %v", err)
 	}
 	defer s.Close()
-	reset(ctx, t)
+	reset(ctx, t, uri)
 
 	if err := s.StoreAlias(ctx, &models.Redir{
 		Host: khost, Alias: kalias, URL: "link",
@@ -510,6 +625,34 @@ func TestHistBucketsAreUTC(t *testing.T) {
 	// 23:30 UTC is 05:00 the next day in Kolkata, which is already on an
 	// hour boundary there: truncating in that zone returns the visit
 	// time unchanged. The bucket must be the UTC hour instead.
+	at := time.Date(2026, 1, 1, 23, 30, 0, 0, time.UTC)
+	if _, err := s.RecordVisit(ctx, &models.Visit{
+		Host: khost, Alias: kalias, IP: "1.2.3.4", Time: at,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	hist, err := s.StatVisitHist(ctx, khost, kalias,
+		at.Add(-time.Hour), at.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hist) != 1 {
+		t.Fatalf("got %d buckets, want 1", len(hist))
+	}
+	want := time.Date(2026, 1, 1, 23, 0, 0, 0, time.UTC)
+	if !hist[0].Time.UTC().Equal(want) {
+		t.Fatalf("bucket = %v, want %v", hist[0].Time.UTC(), want)
+	}
+}
+
+// TestSQLiteHistBucketsAreUTC is the same hour boundary without a session
+// time zone: the instant is stored as Unix microseconds and the bucket is
+// formatted in UTC.
+func TestSQLiteHistBucketsAreUTC(t *testing.T) {
+	ctx := context.Background()
+	s := openURI(ctx, t, sqliteURI(t))
+
 	at := time.Date(2026, 1, 1, 23, 30, 0, 0, time.UTC)
 	if _, err := s.RecordVisit(ctx, &models.Visit{
 		Host: khost, Alias: kalias, IP: "1.2.3.4", Time: at,

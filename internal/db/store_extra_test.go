@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rukins/gore/internal/db"
 	"github.com/rukins/gore/internal/models"
+	_ "modernc.org/sqlite"
 )
 
 // TestNewStoreScheme covers the rollback switch. The scheme in the store
@@ -17,10 +19,11 @@ import (
 func TestNewStoreScheme(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range []struct{ name, uri string }{
-		{"no scheme", "127.0.0.1:5432/redir"},
+		{"no scheme", "127.0.0.1:5432/gore"},
 		{"empty", ""},
-		{"unsupported", "mysql://127.0.0.1:3306/redir"},
-		{"http", "http://127.0.0.1/redir"},
+		{"unsupported", "mysql://127.0.0.1:3306/gore"},
+		{"http", "http://127.0.0.1/gore"},
+		{"sqlite no path", "sqlite://"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := db.NewStore(ctx, tt.uri)
@@ -37,19 +40,19 @@ func TestNewStoreScheme(t *testing.T) {
 func TestRedact(t *testing.T) {
 	for _, tt := range []struct{ in, wantAbsent, wantPresent string }{
 		{
-			in:          "postgres://redir:s3cret@postgres:5432/redir?sslmode=disable",
+			in:          "postgres://gore:s3cret@postgres:5432/gore?sslmode=disable",
 			wantAbsent:  "s3cret",
-			wantPresent: "postgres:5432/redir",
+			wantPresent: "postgres:5432/gore",
 		},
 		{
-			in:          "postgres://0.0.0.0:5432/redir",
+			in:          "postgres://0.0.0.0:5432/gore",
 			wantAbsent:  "@",
 			wantPresent: "0.0.0.0:5432",
 		},
 		{
-			in:          "postgres://redir@postgres:5432/redir",
+			in:          "postgres://gore@postgres:5432/gore",
 			wantAbsent:  "xxxxx",
-			wantPresent: "redir@postgres",
+			wantPresent: "gore@postgres",
 		},
 	} {
 		got := db.Redact(tt.in)
@@ -68,42 +71,66 @@ func TestRedact(t *testing.T) {
 // a migration that ran again would fail the boot.
 func TestMigrationsAreIdempotent(t *testing.T) {
 	ctx := context.Background()
+	for _, be := range []struct{ name, uri string }{
+		{"sqlite", sqliteURI(t)},
+		{"postgres", postgresURI()},
+	} {
+		t.Run(be.name, func(t *testing.T) {
+			if be.name == "postgres" {
+				preparePostgres(ctx, t, be.uri)
+			}
+			s1, err := db.NewStore(ctx, be.uri)
+			if err != nil {
+				if be.name == "postgres" {
+					t.Skipf("cannot connect to postgres: %v", err)
+				}
+				t.Fatal(err)
+			}
+			s1.Close()
 
-	s1, err := db.NewStore(ctx, storeURI())
-	if err != nil {
-		t.Skipf("cannot connect to postgres: %v", err)
+			before := migrationRows(ctx, t, be.uri)
+			if before == 0 {
+				t.Fatal("no migration was recorded")
+			}
+
+			s2, err := db.NewStore(ctx, be.uri)
+			if err != nil {
+				t.Fatalf("reopening the store failed: %v", err)
+			}
+			s2.Close()
+
+			if after := migrationRows(ctx, t, be.uri); after != before {
+				t.Fatalf("schema_migrations went from %d to %d rows", before, after)
+			}
+		})
 	}
-	s1.Close()
+}
 
-	conn, err := pgx.Connect(ctx, storeURI())
+func migrationRows(ctx context.Context, t *testing.T, uri string) int64 {
+	t.Helper()
+	if strings.HasPrefix(uri, "sqlite:") {
+		path := strings.TrimPrefix(uri, "sqlite://")
+		s, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer s.Close()
+		var n int64
+		if err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	conn, err := pgx.Connect(ctx, uri)
 	if err != nil {
 		t.Skipf("cannot connect to postgres: %v", err)
 	}
 	defer conn.Close(ctx)
-
-	var before int64
-	if err := conn.QueryRow(ctx,
-		`SELECT COUNT(*) FROM schema_migrations`).Scan(&before); err != nil {
+	var n int64
+	if err := conn.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if before == 0 {
-		t.Fatal("no migration was recorded")
-	}
-
-	s2, err := db.NewStore(ctx, storeURI())
-	if err != nil {
-		t.Fatalf("reopening the store failed: %v", err)
-	}
-	s2.Close()
-
-	var after int64
-	if err := conn.QueryRow(ctx,
-		`SELECT COUNT(*) FROM schema_migrations`).Scan(&after); err != nil {
-		t.Fatal(err)
-	}
-	if after != before {
-		t.Fatalf("schema_migrations went from %d to %d rows", before, after)
-	}
+	return n
 }
 
 func TestUpdateAliasErrors(t *testing.T) {
@@ -326,14 +353,14 @@ func TestNewStoreUnreachable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	const uri = "postgres://redir:redir@127.0.0.1:1/redir?sslmode=disable"
+	const uri = "postgres://gore:gore@127.0.0.1:1/gore?sslmode=disable"
 	s, err := db.NewStore(ctx, uri)
 	if err == nil {
 		s.Close()
 		t.Fatal("NewStore succeeded against a closed port")
 	}
 	// The message reaches the logs, so it must not carry the password.
-	if strings.Contains(err.Error(), "redir:redir@") {
+	if strings.Contains(err.Error(), "gore:gore@") {
 		t.Errorf("error message leaked the password: %v", err)
 	}
 }
@@ -342,7 +369,7 @@ func TestNewStoreUnreachable(t *testing.T) {
 // rather than the original string, which could be a malformed URI that
 // still holds a password.
 func TestRedactInvalid(t *testing.T) {
-	const bad = "postgres://redir:s3cret@%zz:5432/redir"
+	const bad = "postgres://gore:s3cret@%zz:5432/gore"
 	if got := db.Redact(bad); strings.Contains(got, "s3cret") {
 		t.Fatalf("Redact(%q) = %q, still contains the password", bad, got)
 	}
@@ -542,12 +569,12 @@ func TestCancelledContextIsAnError(t *testing.T) {
 // which prints the configured store address. Without redaction anyone
 // running `gore -h` on the deploy host sees the database password.
 func TestRedactedURIReachesTheUsageText(t *testing.T) {
-	const uri = "postgres://redir:s3cret@postgres:5432/redir?sslmode=disable"
+	const uri = "postgres://gore:s3cret@postgres:5432/gore?sslmode=disable"
 	got := db.Redact(uri)
 	if strings.Contains(got, "s3cret") {
 		t.Fatalf("Redact(%q) = %q, still prints the password", uri, got)
 	}
-	if !strings.Contains(got, "postgres:5432/redir") {
+	if !strings.Contains(got, "postgres:5432/gore") {
 		t.Fatalf("Redact(%q) = %q, lost the address", uri, got)
 	}
 }

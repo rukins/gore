@@ -5,12 +5,8 @@ services:
     environment:
       GORE_CONF: ./data/goreconf.yml
     volumes:
-      # The deployment config stays on the host: it holds credentials and
-      # it outlives any image. Only this file, not the whole data
-      # directory, which also holds the database.
-      - ../data/goreconf.yml:/app/data/goreconf.yml:ro
-    # Login credentials for auth.latere.ai. Optional so a deployment using
-    # basic auth needs no .env file. See .env.template.
+      - ../data:/app/data
+    # Login credentials for auth.latere.ai. Optional so a deployment using basic auth needs no .env file. See .env.template.
     env_file:
       - path: ../.env
         required: false
@@ -18,9 +14,6 @@ services:
       replicas: 1
     networks:
       - traefik_proxy
-      - postgres_internal
 networks:
   traefik_proxy:
-    external: true
-  postgres_internal:
     external: true

@@ -1,18 +1,32 @@
+-- One migration for both engines. Both run this file as it is.
+--
+-- id is BIGINT and is supplied by the application. Neither engine
+-- generates it. INTEGER PRIMARY KEY would be the row itself on SQLite,
+-- but that spelling is 32-bit on PostgreSQL.
+--
+-- Timestamps are Unix microseconds, UTC, also supplied by the
+-- application. BIGINT rather than INTEGER: on PostgreSQL INTEGER is
+-- 32-bit and cannot hold a microsecond timestamp. There is no
+-- DEFAULT NOW().
+--
+-- visitor_id is text and stays nullable. Historical rows have no
+-- identifier, and this migration does not invent one.
+--
 -- links holds one row per short alias. The identity of a link is the pair
 -- (host, alias): one process serves several hosts, and the same alias may
 -- mean different things on each.
 CREATE TABLE links (
-    id         BIGSERIAL PRIMARY KEY,
+    id         BIGINT PRIMARY KEY,
     host       TEXT NOT NULL,
     alias      TEXT NOT NULL,
     url        TEXT NOT NULL,
     private    BOOLEAN NOT NULL DEFAULT FALSE,
     trust      BOOLEAN NOT NULL DEFAULT FALSE,
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    valid_from BIGINT NOT NULL,
     created_by TEXT NOT NULL DEFAULT '',
     updated_by TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
     UNIQUE (host, alias)
 );
 
@@ -25,12 +39,12 @@ CREATE TABLE links (
 -- key would reject. Queries that must match a link therefore join links
 -- explicitly rather than relying on the schema to guarantee it.
 CREATE TABLE visits (
-    id           BIGSERIAL PRIMARY KEY,
+    id           BIGINT PRIMARY KEY,
     host         TEXT NOT NULL,
     alias        TEXT NOT NULL,
     -- Null when the value recorded before this column was validated was
-    -- not a UUID. Historical rows are not given invented identifiers.
-    visitor_id   UUID,
+    -- not parseable. Historical rows are not given invented identifiers.
+    visitor_id   TEXT,
     -- Text, not inet: with gdpr.hide_ip the address is replaced by a
     -- SHA-1 hex digest, or by the literal "unknown" when hashing fails.
     ip           TEXT NOT NULL,
@@ -42,7 +56,7 @@ CREATE TABLE visits (
     os           TEXT NOT NULL DEFAULT '',
     device       TEXT NOT NULL DEFAULT '',
     is_bot       BOOLEAN NOT NULL DEFAULT FALSE,
-    time         TIMESTAMPTZ NOT NULL
+    time         BIGINT NOT NULL
 );
 
 -- Time-ranged stats for one alias.

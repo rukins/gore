@@ -5,9 +5,10 @@ host: https://rukins.dev
 # won the lookup, leaving the reverse proxy unable to reach it.
 addr: :9123
 development: true
-# The schema is applied at start up, so the database and its role are all
-# that must exist beforehand.
-store: postgres://gore:gore@localhost:5432/gore?sslmode=disable
+# The schema is applied at start up. The file is created on startup.
+# To use PostgreSQL instead:
+# store: postgres://gore:gore@localhost:5432/gore?sslmode=disable
+store: sqlite://data/gore.db
 cors: false
 # Further sites this instance serves, keyed by hostname. Each entry
 # carries only what differs: the store keys links by hostname, so every

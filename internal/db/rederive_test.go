@@ -2,17 +2,98 @@ package db_test
 
 import (
 	"context"
+	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/db/migrate"
 	"github.com/rukins/gore/internal/models"
+	_ "modernc.org/sqlite"
 )
+
+// raw is a second connection onto the store under test, used to plant
+// stale derived columns and to read them back. The store interface does
+// not expose that, on purpose.
+type raw struct {
+	t      *testing.T
+	sqlite bool
+	pg     *pgx.Conn
+	lite   *sql.DB
+}
+
+func openRaw(ctx context.Context, t *testing.T, uri string) *raw {
+	t.Helper()
+	r := &raw{t: t, sqlite: strings.HasPrefix(uri, "sqlite:")}
+	if r.sqlite {
+		path := strings.TrimPrefix(uri, "sqlite://")
+		db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.lite = db
+		t.Cleanup(func() { db.Close() })
+		return r
+	}
+	conn, err := pgx.Connect(ctx, uri)
+	if err != nil {
+		t.Skipf("cannot connect to postgres: %v", err)
+	}
+	r.pg = conn
+	t.Cleanup(func() { conn.Close(ctx) })
+	return r
+}
+
+func (r *raw) Exec(ctx context.Context, query string, args ...any) {
+	r.t.Helper()
+	query, args = r.adapt(query, args)
+	var err error
+	if r.sqlite {
+		_, err = r.lite.ExecContext(ctx, query, args...)
+	} else {
+		_, err = r.pg.Exec(ctx, query, args...)
+	}
+	if err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+func (r *raw) QueryRow(ctx context.Context, query string, args ...any) row {
+	r.t.Helper()
+	query, args = r.adapt(query, args)
+	if r.sqlite {
+		return r.lite.QueryRowContext(ctx, query, args...)
+	}
+	return r.pg.QueryRow(ctx, query, args...)
+}
+
+type row interface {
+	Scan(dest ...any) error
+}
+
+// adapt turns the $n placeholders the tests are written in into the
+// question marks SQLite wants, and stores time.Time as Unix microseconds
+// on both engines. The columns are integers, not timestamps.
+func (r *raw) adapt(query string, args []any) (string, []any) {
+	if r.sqlite {
+		query = strings.NewReplacer("$1", "?", "$2", "?", "$3", "?").Replace(query)
+	}
+	out := make([]any, len(args))
+	for i, a := range args {
+		if t, ok := a.(time.Time); ok {
+			out[i] = t.UTC().UnixMicro()
+			continue
+		}
+		out[i] = a
+	}
+	return query, out
+}
 
 // seedForRederive records a mix of traffic and then puts the derived
 // columns into the state an older classification rule would have left.
-func seedForRederive(ctx context.Context, t *testing.T, s db.Store) *pgx.Conn {
+func seedForRederive(ctx context.Context, t *testing.T, s db.Store) *raw {
 	t.Helper()
 	now := time.Now().UTC()
 
@@ -29,19 +110,12 @@ func seedForRederive(ctx context.Context, t *testing.T, s db.Store) *pgx.Conn {
 		}
 	}
 
-	conn, err := pgx.Connect(ctx, storeURI())
-	if err != nil {
-		t.Skipf("cannot connect to postgres: %v", err)
-	}
-	t.Cleanup(func() { conn.Close(ctx) })
-
-	if _, err := conn.Exec(ctx, `
+	conn := openRaw(ctx, t, storeURI(t))
+	conn.Exec(ctx, `
 		UPDATE visits
 		SET is_bot = false, browser = '', os = '', device = '',
 		    referer_host = ''
-		WHERE host = $1`, khost); err != nil {
-		t.Fatal(err)
-	}
+		WHERE host = $1`, khost)
 	return conn
 }
 
@@ -54,7 +128,7 @@ func TestRederiveUpdatesStaleRows(t *testing.T) {
 		ctx := context.Background()
 		conn := seedForRederive(ctx, t, s)
 
-		if err := db.Rederive(ctx, storeURI(), khost); err != nil {
+		if err := db.Rederive(ctx, storeURI(t), khost); err != nil {
 			t.Fatalf("rederive failed: %v", err)
 		}
 
@@ -91,11 +165,11 @@ func TestRederiveIsIdempotent(t *testing.T) {
 		ctx := context.Background()
 		conn := seedForRederive(ctx, t, s)
 
-		if err := db.Rederive(ctx, storeURI(), khost); err != nil {
+		if err := db.Rederive(ctx, storeURI(t), khost); err != nil {
 			t.Fatal(err)
 		}
 		before := rederiveSnapshot(ctx, t, conn)
-		if err := db.Rederive(ctx, storeURI(), khost); err != nil {
+		if err := db.Rederive(ctx, storeURI(t), khost); err != nil {
 			t.Fatal(err)
 		}
 		if after := rederiveSnapshot(ctx, t, conn); after != before {
@@ -120,7 +194,7 @@ func TestRederiveLeavesSourceColumnsAlone(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := db.Rederive(ctx, storeURI(), khost); err != nil {
+		if err := db.Rederive(ctx, storeURI(t), khost); err != nil {
 			t.Fatal(err)
 		}
 
@@ -143,14 +217,12 @@ func TestRederiveOtherHostUntouched(t *testing.T) {
 		ctx := context.Background()
 		conn := seedForRederive(ctx, t, s)
 
-		if _, err := conn.Exec(ctx, `
-			INSERT INTO visits (host, alias, ip, ua, time, is_bot)
-			VALUES ('other.example', 'a', '8.8.8.8', $1, NOW(), false)`,
-			botUA); err != nil {
-			t.Fatal(err)
-		}
+		conn.Exec(ctx, `
+			INSERT INTO visits (id, host, alias, ip, ua, time, is_bot)
+			VALUES ($1, 'other.example', 'a', '8.8.8.8', $2, $3, false)`,
+			migrate.NextID(), botUA, time.Now().UTC())
 
-		if err := db.Rederive(ctx, storeURI(), khost); err != nil {
+		if err := db.Rederive(ctx, storeURI(t), khost); err != nil {
 			t.Fatal(err)
 		}
 
@@ -167,14 +239,23 @@ func TestRederiveOtherHostUntouched(t *testing.T) {
 }
 
 // rederiveSnapshot returns a stable description of the derived columns.
-func rederiveSnapshot(ctx context.Context, t *testing.T, conn *pgx.Conn) string {
+func rederiveSnapshot(ctx context.Context, t *testing.T, conn *raw) string {
 	t.Helper()
-	var s string
-	if err := conn.QueryRow(ctx, `
+	q := `
 		SELECT COALESCE(string_agg(
 		         id || ':' || browser || ':' || os || ':' || device ||
 		         ':' || is_bot || ':' || referer_host, '|' ORDER BY id), '')
-		FROM visits WHERE host = $1`, khost).Scan(&s); err != nil {
+		FROM visits WHERE host = $1`
+	if conn.sqlite {
+		q = `
+		SELECT COALESCE(group_concat(piece, '|'), '') FROM (
+			SELECT id || ':' || browser || ':' || os || ':' || device ||
+			       ':' || is_bot || ':' || referer_host AS piece
+			FROM visits WHERE host = $1 ORDER BY id
+		)`
+	}
+	var s string
+	if err := conn.QueryRow(ctx, q, khost).Scan(&s); err != nil {
 		t.Fatal(err)
 	}
 	return s

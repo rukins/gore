@@ -29,6 +29,7 @@ WORKDIR /app
 COPY --from=server /gore ./gore
 # The deployment config is mounted at /app/data/goreconf.yml rather than
 # copied in: it holds credentials, and baking it in would put them in
-# every layer of a shared image. See docker-compose.yml.
+# every layer of a shared image. The same directory holds the SQLite
+# file. See docker-compose.yml.
 EXPOSE 80
 CMD ["/app/gore", "-s"]
