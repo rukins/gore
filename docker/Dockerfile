@@ -31,5 +31,5 @@ COPY --from=server /gore ./gore
 # copied in: it holds credentials, and baking it in would put them in
 # every layer of a shared image. The same directory holds the SQLite
 # file. See docker-compose.yml.
-EXPOSE 80
+EXPOSE 9150
 CMD ["/app/gore", "-s"]

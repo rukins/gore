@@ -2,6 +2,8 @@ services:
   gore:
     restart: always
     image: gore:latest
+    ports:
+      - "9150:9150"
     environment:
       GORE_CONF: ./data/goreconf.yml
     volumes:
@@ -12,8 +14,3 @@ services:
         required: false
     deploy:
       replicas: 1
-    networks:
-      - traefik_proxy
-networks:
-  traefik_proxy:
-    external: true
