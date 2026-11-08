@@ -3,7 +3,7 @@ host: https://rukins.dev
 # Bind every interface. Naming a host here resolves to one interface, and
 # a container on more than one network then listens on whichever address
 # won the lookup, leaving the reverse proxy unable to reach it.
-addr: :9123
+addr: :9150
 development: true
 # The schema is applied at start up. The file is created on startup.
 # To use PostgreSQL instead:

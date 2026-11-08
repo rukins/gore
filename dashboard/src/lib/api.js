@@ -3,7 +3,7 @@ import { basePath } from './paths'
 // origin is where the API lives. In development the dashboard is served
 // by Vite and the server is elsewhere, so the two are not the same.
 const origin = (devMode) =>
-  devMode ? 'http://localhost:9123/s' : basePath()
+  devMode ? 'http://localhost:9150/s' : basePath()
 
 const post = async (body) => {
   const resp = await fetch(basePath() + '/', {
