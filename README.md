@@ -31,9 +31,9 @@ readers.
 - **Pages the GDPR asks for**: impressum, privacy and contact, with
   optional IP hashing.
 
-| Public index | Held until a date | Leaving the site |
+| Public index | Wating until a date | Leaving the site |
 |:---:|:---:|:---:|
-| ![](./.github/assets/index.png) | ![](./.github/assets/wait.png) | ![](./.github/assets/warn.png) |
+| ![](./.github/assets/index.png) | ![](./.github/assets/waiting.png) | ![](./.github/assets/warning.png) |
 
 ## Getting started
 
