@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/handlers/auth"
 	"github.com/rukins/gore/internal/models"
 	"github.com/rukins/gore/internal/short"
 	"github.com/rukins/gore/internal/utils"
@@ -23,7 +24,7 @@ import (
 
 // sHandler redirects the current request to a known link if the alias is
 // found in the gore store.
-func (s *server) sHandler() http.Handler {
+func (s *service) SHandler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// for development.
@@ -65,7 +66,7 @@ type shortOutput struct {
 // sHandlerPost handles all kinds of operations.
 // This is not a RESTful style, because we don't have that much router space
 // to use. We are currently limited the single index router, which is the /s.
-func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
+func (s *service) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if err == nil {
@@ -79,7 +80,7 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 		// it, where it has no effect, so every refusal arrived as 200.
 		// An unauthorized request has already been answered by
 		// handleAuth, with a redirect to the login or a status of its own.
-		if !errors.Is(err, errUnauthorized) {
+		if !errors.Is(err, auth.ErrUnauthorized) {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 		_, _ = w.Write(b)
@@ -146,10 +147,10 @@ func (s *server) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 // sHandlerGet is the core of gore service. It redirects a given
 // alias to the actual destination.
-func (s *server) sHandlerGet(w http.ResponseWriter, r *http.Request) {
+func (s *service) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
-		if err != nil && !errors.Is(err, errUnauthorized) {
+		if err != nil && !errors.Is(err, auth.ErrUnauthorized) {
 			// Just redirect the user we could not find the record rather than
 			// throw 50x. The server logs should be able to identify the issue.
 			log.Printf("request err: %v\n", err)
@@ -164,7 +165,7 @@ func (s *server) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 
 	// URLs with /s/.* is reserved for internal usage.
 	if strings.HasPrefix(r.URL.Path, prefix+".") {
-		err = s.serveStatic(ctx, w, r, prefix)
+		err = s.serveStatic(ctx, w, r)
 		return
 	}
 
@@ -207,7 +208,7 @@ func (s *server) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 
 	// Send a wait page if time does not permitting
 	if time.Now().UTC().Sub(red.ValidFrom.UTC()) < 0 {
-		err = waitTmpl.ExecuteTemplate(w, "layout", &pageInfo{
+		err = s.wait.ExecuteTemplate(w, "layout", &pageInfo{
 			Site:          r.Host,
 			Prefix:        config.Conf.S.Prefix,
 			ValidFrom:     red.ValidFrom.UTC().Format("2006-01-02T15:04:05"),
@@ -236,7 +237,7 @@ func (s *server) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 		// If a redirect is accidentally configured as non-trustable,
 		// but still an internal website, then we don't show the warn page.
 		if !allowRedir && !strings.Contains(red.URL, r.Host) {
-			err = warnTmpl.ExecuteTemplate(w, "layout", &pageInfo{
+			err = s.warn.ExecuteTemplate(w, "layout", &pageInfo{
 				Site:          r.Host,
 				Prefix:        config.Conf.S.Prefix,
 				OwnerName:     config.Conf.GDPR.Owner.Name,
@@ -284,28 +285,27 @@ type pageInfo struct {
 	ShowContact   bool
 }
 
-func (s *server) serveStatic(
+func (s *service) serveStatic(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
-	prefix string,
 ) error {
+	prefix := config.Conf.S.Prefix
+
 	site := config.Conf.SiteFor(r.Host)
+
+	// Login, callback, and logout are dotted paths, like the static files.
+	// They exist only when latere is configured. Anything else falls
+	// through to the files and the legal pages.
+	if routes, ok := s.latere.(auth.Router); ok && routes.Route(w, r) {
+		return nil
+	}
 
 	var (
 		t *template.Template
 		d *pageInfo
 	)
 	switch {
-	case s.latere != nil && strings.HasPrefix(r.URL.Path, prefix+loginPath):
-		s.latere.clientFor(r).HandleLogin(w, r)
-		return nil
-	case s.latere != nil && strings.HasPrefix(r.URL.Path, prefix+callbackPath):
-		s.latere.clientFor(r).HandleCallback(w, r)
-		return nil
-	case s.latere != nil && strings.HasPrefix(r.URL.Path, prefix+logoutPath):
-		s.latere.clientFor(r).HandleLogout(w, r)
-		return nil
 	case strings.HasPrefix(r.URL.Path, prefix+".static"):
 		// Serve static files under ./.static/*. This should not conflict
 		// with all existing aliases, meaning that alias should not start
@@ -318,7 +318,7 @@ func (s *server) serveStatic(
 			w.Header().Add("Content-Type", "text/javascript")
 		}
 
-		f, err := statics.Open(strings.TrimPrefix(r.URL.Path, prefix+".static/"))
+		f, err := s.statics.Open(strings.TrimPrefix(r.URL.Path, prefix+".static/"))
 		if err != nil {
 			return err
 		}
@@ -330,7 +330,7 @@ func (s *server) serveStatic(
 		return err
 	case strings.HasPrefix(r.URL.Path, prefix+".impressum"):
 		if site.ShowImpressum {
-			t = impressumTmpl
+			t = s.impressum
 		}
 		d = &pageInfo{
 			Body:          template.HTML(config.Conf.GDPR.Impressum.Content),
@@ -340,7 +340,7 @@ func (s *server) serveStatic(
 		}
 	case strings.HasPrefix(r.URL.Path, prefix+".privacy"):
 		if site.ShowPrivacy {
-			t = privacyTmpl
+			t = s.privacy
 		}
 		d = &pageInfo{
 			Body:          template.HTML(config.Conf.GDPR.Privacy.Content),
@@ -350,7 +350,7 @@ func (s *server) serveStatic(
 		}
 	case strings.HasPrefix(r.URL.Path, prefix+".contact"):
 		if site.ShowContact {
-			t = contactTmpl
+			t = s.contact
 		}
 		d = &pageInfo{
 			Email:         config.Conf.GDPR.Contact.Email,
@@ -383,7 +383,7 @@ const (
 // allocates a new visitor id for the visitor.
 //
 // We don't care if any error happens inside.
-func (s *server) recognizeVisitor(
+func (s *service) recognizeVisitor(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -437,7 +437,7 @@ func (s *server) recognizeVisitor(
 }
 
 // checkdb checks whether the given alias is exsited in the gore database
-func (s *server) checkdb(ctx context.Context, host, alias string) (*models.Link, error) {
+func (s *service) checkdb(ctx context.Context, host, alias string) (*models.Link, error) {
 	a, err := s.db.FetchAlias(ctx, host, alias)
 	if err != nil {
 		return nil, err
@@ -447,7 +447,7 @@ func (s *server) checkdb(ctx context.Context, host, alias string) (*models.Link,
 
 // checkvcs checks whether the given alias is an repository on VCS, if so,
 // then creates a new alias and returns url of the vcs repository.
-func (s *server) checkvcs(ctx context.Context, site config.Site, alias string) (*models.Link, error) {
+func (s *service) checkvcs(ctx context.Context, site config.Site, alias string) (*models.Link, error) {
 	host := site.Host
 
 	// The organisation probed is the one belonging to the site the
@@ -505,7 +505,7 @@ var (
 //
 // If the query parameter contaisn mode=stat, then it returns application/json
 // data, which contains data for data visualizations in the index page.
-func (s *server) sIndex(
+func (s *service) sIndex(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -565,7 +565,7 @@ func (s *server) sIndex(
 
 	// Serve the index page.
 	w.Header().Add("Content-Type", "text/html")
-	return dTmpl.Execute(w, e)
+	return s.dashboard.Execute(w, e)
 }
 
 // indexOutput is the link listing. Series carries one entry per alias on
@@ -580,7 +580,7 @@ type indexOutput struct {
 }
 
 // index on all aliases, require admin access.
-func (s *server) indexData(
+func (s *service) indexData(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -684,7 +684,7 @@ func fillSeries(
 // overviewData answers the console's first question, whether anything is
 // happening, in one request. Adding these up from the link listing would
 // mean paging through every link.
-func (s *server) overviewData(
+func (s *service) overviewData(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -711,7 +711,7 @@ func (s *server) overviewData(
 	return nil
 }
 
-func (s *server) statData(
+func (s *service) statData(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,

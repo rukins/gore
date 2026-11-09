@@ -1,7 +1,8 @@
-package main
+package handlers
 
 import (
 	"io/fs"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -9,34 +10,36 @@ import (
 
 // TestDashboardEmbedContract pins the agreement between the dashboard
 // bundler and the server: index.html keeps the Go template placeholders,
-// its asset URLs live under /static so init can rewrite them to the
-// ./.static route, and the embedded tree actually holds those assets.
+// its asset URLs are rewritten from /static to the ./.static route, and
+// the embedded tree actually holds those assets.
 // A bundler or config change that moves the output breaks this here
 // rather than at runtime on an empty page.
 func TestDashboardEmbedContract(t *testing.T) {
+	page, assets, err := prepareDashboard(os.DirFS("../.."))
+	if err != nil {
+		t.Fatalf("prepare dashboard: %v", err)
+	}
+
+	// The parsed template is what the server executes. Placeholders have
+	// to survive the rewrite, and asset URLs have to point at the route
+	// serveStatic actually handles.
+	source := page.Tree.Root.String()
 	placeholders := []string{
 		"AdminView", "StatsMode", "DevMode",
 		"ShowImpressum", "ShowPrivacy", "ShowContact", "LogoutURL",
 	}
 	for _, p := range placeholders {
-		if want := "{{." + p + "}}"; !strings.Contains(dtmpl, want) {
-			t.Errorf("dashboard index.html is missing the %s placeholder", want)
+		if want := "{{." + p + "}}"; !strings.Contains(source, want) {
+			t.Errorf("dashboard index.html is missing the %s placeholder", p)
 		}
 	}
-
-	// init rewrote /static to ./.static, so the rewritten form is what
-	// proves the assets were emitted where the server expects them.
-	if !strings.Contains(dtmpl, "./.static/") {
-		t.Errorf("dashboard index.html references no ./.static asset:\n%s", dtmpl)
+	if !strings.Contains(source, "./.static/") {
+		t.Errorf("dashboard index.html references no ./.static asset:\n%s", source)
 	}
-	if strings.Contains(dtmpl, `"/static/`) {
+	if strings.Contains(source, `"/static/`) {
 		t.Errorf("dashboard index.html still holds an unrewritten /static reference")
 	}
 
-	assets, err := fs.Sub(sasse, "dashboard/build/static")
-	if err != nil {
-		t.Fatalf("cannot open the embedded static tree: %v", err)
-	}
 	exts := map[string]bool{}
 	err = fs.WalkDir(assets, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

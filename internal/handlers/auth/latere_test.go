@@ -1,10 +1,9 @@
-package main
+package auth
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/rukins/gore/internal/config"
@@ -76,7 +75,7 @@ func testAuth(t *testing.T) *latereAuth {
 	c := oidc.New(oidc.Config{
 		AuthURL:     "https://auth.example.test",
 		ClientID:    "gore-test",
-		RedirectURL: "https://example.com/s/" + callbackPath,
+		RedirectURL: "https://example.com/s/" + CallbackPath,
 		CookieKey:   "0123456789abcdef0123456789abcdef",
 	})
 	if c == nil {
@@ -92,12 +91,15 @@ func testAuth(t *testing.T) *latereAuth {
 // starts an authorization code flow with PKCE, rather than being swallowed
 // by the alias lookup.
 func TestLoginRoute(t *testing.T) {
-	s := &server{latere: testAuth(t)}
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/"+loginPath+"?return_to=%2Fs%2F%3Fmode%3Dadmin", nil)
+	saved := config.Conf
+	t.Cleanup(func() { config.Conf = saved })
+	config.Conf.S.Prefix = "/s/"
 
-	if err := s.serveStatic(t.Context(), w, r, "/s/"); err != nil {
-		t.Fatalf("serveStatic: %v", err)
+	a := testAuth(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/s/"+LoginPath+"?return_to=%2Fs%2F%3Fmode%3Dadmin", nil)
+	if !a.Route(w, r) {
+		t.Fatal("login route was not handled")
 	}
 	if w.Code != http.StatusFound {
 		t.Fatalf("login route returned %v, want %v", w.Code, http.StatusFound)
@@ -123,75 +125,11 @@ func TestLoginRoute(t *testing.T) {
 	if q.Get("code_challenge") == "" {
 		t.Error("authorize request carries no PKCE code_challenge")
 	}
-}
 
-// TestHandleAuthSendsAnonymousToLogin covers the path a visitor takes when
-// they open the admin dashboard without a session.
-func TestHandleAuthSendsAnonymousToLogin(t *testing.T) {
-	prev := config.Conf.Auth.Enable
-	config.Conf.Auth.Enable = config.Latere
-	t.Cleanup(func() { config.Conf.Auth.Enable = prev })
-
-	s := &server{latere: testAuth(t)}
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/?mode=admin", nil)
-
-	user, err := s.handleAuth(w, r)
-	if err == nil {
-		t.Fatal("handleAuth accepted a request with no session")
-	}
-	if user != "" {
-		t.Errorf("handleAuth named %q for an anonymous request", user)
-	}
-	if w.Code != http.StatusFound {
-		t.Fatalf("handleAuth returned %v, want a %v to the login route", w.Code, http.StatusFound)
-	}
-
-	loc := w.Header().Get("Location")
-	if !strings.HasPrefix(loc, "/s/"+loginPath) {
-		t.Errorf("handleAuth redirected to %q, want the login route", loc)
-	}
-	// The visitor has to land back where they started.
-	if got := mustQuery(t, loc).Get("return_to"); got != "/s/?mode=admin" {
-		t.Errorf("return_to = %q, want the originally requested page", got)
-	}
-}
-
-func mustQuery(t *testing.T, raw string) url.Values {
-	t.Helper()
-	u, err := url.Parse(raw)
-	if err != nil {
-		t.Fatalf("cannot parse %q: %v", raw, err)
-	}
-	return u.Query()
-}
-
-// TestHandleAuthUnknownModeRefuses covers a stale or mistyped auth.enable.
-// Administration must fail closed rather than quietly fall through to a
-// different login. Public redirects do not go through handleAuth and keep
-// working.
-func TestHandleAuthUnknownModeRefuses(t *testing.T) {
-	prev := config.Conf.Auth.Enable
-	config.Conf.Auth.Enable = "no-such-mode"
-	t.Cleanup(func() { config.Conf.Auth.Enable = prev })
-
-	s := &server{}
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/?mode=admin", nil)
-
-	user, err := s.handleAuth(w, r)
-	if err == nil {
-		t.Fatal("handleAuth accepted a request under an unknown auth mode")
-	}
-	if user != "" {
-		t.Errorf("handleAuth named %q under an unknown auth mode", user)
-	}
-	if w.Code != http.StatusForbidden {
-		t.Errorf("handleAuth returned %v, want %v", w.Code, http.StatusForbidden)
-	}
-	// It must not have offered basic auth as a fallback.
-	if got := w.Header().Get("WWW-Authenticate"); got != "" {
-		t.Errorf("handleAuth fell through to basic auth: WWW-Authenticate=%q", got)
+	// A static file is not a login route. Claiming it would stop the
+	// shortener from serving the console assets.
+	if a.Route(httptest.NewRecorder(), httptest.NewRequest("GET", "/s/.static/app.js", nil)) {
+		t.Error("Route claimed a static file")
 	}
 }
 
@@ -305,5 +243,8 @@ func TestClientForSelectsTheSite(t *testing.T) {
 	var nilAuth *latereAuth
 	if nilAuth.clientFor(httptest.NewRequest(http.MethodGet, "/", nil)) != nil {
 		t.Error("a nil latereAuth returned a client")
+	}
+	if nilAuth.Route(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/s/.auth/login", nil)) {
+		t.Error("a nil latereAuth handled a login route")
 	}
 }

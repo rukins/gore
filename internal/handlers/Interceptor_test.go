@@ -1,4 +1,4 @@
-package utils_test
+package handlers_test
 
 import (
 	"bytes"
@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rukins/gore/internal/utils"
+	"github.com/rukins/gore/internal/config"
+	"github.com/rukins/gore/internal/handlers"
 )
 
 // TestLoggingOmitsAddressesWhenHidden checks the access log honours
@@ -34,7 +35,7 @@ func TestLoggingOmitsAddressesWhenHidden(t *testing.T) {
 			t.Cleanup(func() { log.SetOutput(nil) })
 
 			var served bool
-			h := utils.Logging()(http.HandlerFunc(
+			h := handlers.LoggingInterceptor()(http.HandlerFunc(
 				func(http.ResponseWriter, *http.Request) { served = true }))
 
 			r := httptest.NewRequest(http.MethodGet, "/s/blog?mode=admin", nil)
@@ -57,4 +58,13 @@ func TestLoggingOmitsAddressesWhenHidden(t *testing.T) {
 			}
 		})
 	}
+}
+
+// restore sets hide_ip for one test and puts it back afterwards, since
+// the configuration is a package-level value.
+func restore(t *testing.T, hide bool) {
+	t.Helper()
+	saved := config.Conf.GDPR.HideIP
+	config.Conf.GDPR.HideIP = hide
+	t.Cleanup(func() { config.Conf.GDPR.HideIP = saved })
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/rukins/gore/internal/config"
 	"github.com/rukins/gore/internal/db"
+	"github.com/rukins/gore/internal/handlers"
 	"github.com/rukins/gore/internal/models"
 	"github.com/rukins/gore/internal/short"
 	"github.com/rukins/gore/internal/version"
@@ -31,54 +33,26 @@ var (
 	rederive = flag.Bool("rederive", false, "Recompute the browser, os, device, bot and referer host of stored visits, then exit")
 )
 
-// runRederive recomputes the columns derived from a visit's user agent
-// and referer.
-//
-// Those columns cache a pure function of ua and referer, so improving the
-// function leaves the stored values stale. Without this, visits recorded
-// before a rule changed are classified by the old rule and everything
-// since by the new one, and a single chart mixes the two.
-//
-// It covers every configured site. A rule change applies to all of them,
-// and re-deriving only the primary one leaves the others reading by the
-// old rule with nothing to say so.
-func runRederive() {
-	ctx, cancel := signal.NotifyContext(context.Background(),
-		os.Interrupt, os.Kill)
-	defer cancel()
+func main() {
+	log.SetPrefix("gore: ")
+	log.SetFlags(log.Lmsgprefix | log.LstdFlags | log.Lshortfile)
+	flag.CommandLine.Usage = usage
+	flag.Parse()
 
-	hosts := []string{config.Conf.Hostname()}
-	for name := range config.Conf.Hosts {
-		if h := config.NormalizeHost(name); h != "" && h != hosts[0] {
-			hosts = append(hosts, h)
-		}
+	if len(os.Args) < 2 {
+		flag.Usage()
+		return
 	}
 
-	log.Printf("re-deriving %v in %v", hosts, db.Redact(config.Conf.Store))
-	for _, host := range hosts {
-		if err := db.Rederive(ctx, config.Conf.Store, host); err != nil {
-			log.Fatalf("cannot re-derive visits for %v: %v", host, err)
-		}
+	if *rederive {
+		runRederive()
+		return
 	}
-}
-
-// givenFlags reports which of the link fields were named on the command
-// line, so an update can leave the rest alone.
-func givenFlags() short.Given {
-	var g short.Given
-	flag.Visit(func(f *flag.Flag) {
-		switch f.Name {
-		case "l":
-			g.URL = true
-		case "p":
-			g.Private = true
-		case "trust":
-			g.Trust = true
-		case "vt":
-			g.ValidFrom = true
-		}
-	})
-	return g
+	if *daemon {
+		runServer()
+		return
+	}
+	runCmd()
 }
 
 func usage() {
@@ -132,36 +106,76 @@ gore -op delete -a rukins
 	os.Exit(2)
 }
 
-func main() {
-	log.SetPrefix("gore: ")
-	log.SetFlags(log.Lmsgprefix | log.LstdFlags | log.Lshortfile)
-	flag.CommandLine.Usage = usage
-	flag.Parse()
+// runRederive recomputes the columns derived from a visit's user agent
+// and referer.
+//
+// Those columns cache a pure function of ua and referer, so improving the
+// function leaves the stored values stale. Without this, visits recorded
+// before a rule changed are classified by the old rule and everything
+// since by the new one, and a single chart mixes the two.
+//
+// It covers every configured site. A rule change applies to all of them,
+// and re-deriving only the primary one leaves the others reading by the
+// old rule with nothing to say so.
+func runRederive() {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, os.Kill)
+	defer cancel()
 
-	if len(os.Args) < 2 {
-		flag.Usage()
-		return
+	hosts := []string{config.Conf.Hostname()}
+	for name := range config.Conf.Hosts {
+		if h := config.NormalizeHost(name); h != "" && h != hosts[0] {
+			hosts = append(hosts, h)
+		}
 	}
 
-	if *rederive {
-		runRederive()
-		return
+	log.Printf("re-deriving %v in %v", hosts, db.Redact(config.Conf.Store))
+	for _, host := range hosts {
+		if err := db.Rederive(ctx, config.Conf.Store, host); err != nil {
+			log.Fatalf("cannot re-derive visits for %v: %v", host, err)
+		}
 	}
-	if *daemon {
-		runServer()
-		return
-	}
-	runCmd()
 }
 
 func runServer() {
-	s := newServer(context.Background())
-	s.registerHandler()
+	ctx := context.Background()
+
+	api := newAPI(ctx)
+
 	log.Printf("serving at %s\n", config.Conf.Addr)
 	if err := http.ListenAndServe(config.Conf.Addr, nil); err != nil {
 		log.Printf("ListenAndServe %s: %v\n", config.Conf.Addr, err)
 	}
-	s.close()
+
+	api.Close()
+}
+
+var (
+	//go:embed templates/*
+	pages embed.FS
+	//go:embed dashboard/build
+	dashboard embed.FS
+)
+
+func newAPI(ctx context.Context) handlers.GoreAPI {
+	l := handlers.LoggingInterceptor()
+
+	api := handlers.NewGoreAPI(ctx, handlers.Assets{
+		Pages:     pages,
+		Dashboard: dashboard,
+	})
+
+	// semantic shortener (default)
+	log.Println("router /s is enabled.")
+	http.Handle(config.Conf.S.Prefix, l(api.SHandler()))
+
+	// repo redirector
+	if config.Conf.X.Enable {
+		log.Println("router /x is enabled.")
+		http.Handle(config.Conf.X.Prefix, l(api.XHandler()))
+	}
+
+	return api
 }
 
 func runCmd() {
@@ -232,4 +246,23 @@ func runCmd() {
 	case <-done:
 		return
 	}
+}
+
+// givenFlags reports which of the link fields were named on the command
+// line, so an update can leave the rest alone.
+func givenFlags() short.Given {
+	var g short.Given
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "l":
+			g.URL = true
+		case "p":
+			g.Private = true
+		case "trust":
+			g.Trust = true
+		case "vt":
+			g.ValidFrom = true
+		}
+	})
+	return g
 }

@@ -1,7 +1,8 @@
-package main
+package auth
 
 import (
 	"cmp"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,9 +17,9 @@ import (
 // .static and .impressum; an alias may not begin with a dot, so these can
 // never collide with a short link.
 const (
-	loginPath    = ".auth/login"
-	callbackPath = ".auth/callback"
-	logoutPath   = ".auth/logout"
+	LoginPath    = ".auth/login"
+	CallbackPath = ".auth/callback"
+	LogoutPath   = ".auth/logout"
 )
 
 // latereAuth is the relying party for auth.latere.ai. It runs the
@@ -40,7 +41,7 @@ type latereAuth struct {
 // newLatereAuth builds the relying party from the environment. It returns
 // nil when the deployment is not configured for it, and every request then
 // fails closed rather than falling back to an anonymous session.
-func newLatereAuth(prefix string) *latereAuth {
+func NewLatereAuth(prefix string) Auth {
 	allowed := principalSet(os.Getenv("AUTH_ALLOWED_PRINCIPALS"))
 	if len(allowed) == 0 {
 		log.Println("AUTH_ALLOWED_PRINCIPALS is unset, latere logins will be rejected")
@@ -72,6 +73,42 @@ func newLatereAuth(prefix string) *latereAuth {
 	return &latereAuth{clients: clients, allowed: allowed}
 }
 
+func (a *latereAuth) Handle(w http.ResponseWriter, r *http.Request) (user string, err error) {
+	if user = a.user(w, r); user != "" {
+		return user, nil
+	}
+	// These GETs are served by Route. Handle only answers an admin request
+	// that has no session, by sending the visitor to the login route.
+	http.Redirect(w, r, a.loginURL(config.Conf.S.Prefix, r), http.StatusFound)
+	return "", fmt.Errorf("%w: no signed in latere principal", ErrUnauthorized)
+}
+
+// Route serves login, callback, and logout. The shortener calls it for
+// every dotted path under the prefix; other paths are left for static
+// files and the legal pages. A nil receiver or a missing client handles
+// nothing, rather than panicking on the method call.
+func (a *latereAuth) Route(w http.ResponseWriter, r *http.Request) bool {
+	if a == nil {
+		return false
+	}
+	c := a.clientFor(r)
+	if c == nil {
+		return false
+	}
+	prefix := config.Conf.S.Prefix
+	switch {
+	case strings.HasPrefix(r.URL.Path, prefix+LoginPath):
+		c.HandleLogin(w, r)
+	case strings.HasPrefix(r.URL.Path, prefix+CallbackPath):
+		c.HandleCallback(w, r)
+	case strings.HasPrefix(r.URL.Path, prefix+LogoutPath):
+		c.HandleLogout(w, r)
+	default:
+		return false
+	}
+	return true
+}
+
 // callbackURLs is the callback each site is reached on, keyed by hostname.
 //
 // Every site needs its own, and each has to be registered with the
@@ -87,14 +124,14 @@ func callbackURLs(prefix string) map[string]string {
 
 	out := map[string]string{
 		primary: cmp.Or(os.Getenv("AUTH_REDIRECT_URL"),
-			strings.TrimRight(config.Conf.Host, "/")+prefix+callbackPath),
+			strings.TrimRight(config.Conf.Host, "/")+prefix+CallbackPath),
 	}
 	for name := range config.Conf.Hosts {
 		host := config.NormalizeHost(name)
 		if host == "" || host == primary {
 			continue
 		}
-		out[host] = scheme + "://" + host + prefix + callbackPath
+		out[host] = scheme + "://" + host + prefix + CallbackPath
 	}
 	return out
 }
@@ -151,19 +188,10 @@ func (a *latereAuth) permit(u *oidc.User) string {
 	return ""
 }
 
-// logoutURL is the route that ends a latere session, or the empty string
-// when the deployment has no session to end.
-func logoutURL() string {
-	if config.Conf.Auth.Enable != config.Latere {
-		return ""
-	}
-	return config.Conf.S.Prefix + logoutPath
-}
-
 // loginURL sends the visitor to the login route, remembering where they
 // were so the callback can put them back.
 func (a *latereAuth) loginURL(prefix string, r *http.Request) string {
 	q := url.Values{}
 	q.Set("return_to", r.URL.RequestURI())
-	return prefix + loginPath + "?" + q.Encode()
+	return prefix + LoginPath + "?" + q.Encode()
 }

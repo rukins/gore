@@ -16,7 +16,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 # The server embeds the dashboard, so it has to be in place before the
-# build. See the go:embed directives in server.go.
+# build. See the go:embed directives in main.go.
 COPY --from=dashboard /src/dashboard/build ./dashboard/build
 ARG VERSION=dev
 RUN echo "$VERSION" > internal/version/.version && \
