@@ -17,9 +17,11 @@ readers.
   `go get yourdomain.com/x/repo` resolves to your VCS.
 - **A public index** of the links a visitor may follow, which discloses
   neither targets nor traffic.
-- **An operator console** at `/s?mode=admin`: totals, the month as a
-  chart, a dense listing with recent traffic per link, and per-link
-  detail. It follows the system's light or dark setting.
+- **An operator console** at `/a/`: totals, the month as a chart, a
+  dense listing with recent traffic per link, and per-link detail. It
+  follows the system's light or dark setting. The prefix is not linked
+  from the public index, so a proxy can keep it private. `admin.enable:
+  false` closes it; the command line still manages links.
 - **Statistics** of page and unique views over time, referring hosts,
   browsers, systems and devices. Automated traffic is classified where a
   visit is recorded and excluded from every figure, with a count of what
@@ -101,7 +103,7 @@ than starting quietly against the wrong database.
 
 `latere` runs OAuth 2.0 with PKCE and keeps the result in an encrypted
 session cookie. Register an OAuth client whose `redirect_uris` include
-`<host>/s/.auth/callback` and whose `allowed_origins` include `<host>`,
+`<host>/a/.auth/callback` and whose `allowed_origins` include `<host>`,
 for each site you serve. Set the environment variables in
 [.env.template](./.env.template).
 

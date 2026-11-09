@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +11,7 @@ import (
 	"github.com/rukins/gore/internal/handlers/auth"
 )
 
-// recordingRouter is the latere login flow as serveStatic sees it. The
+// recordingRouter is the latere login flow as the console sees it. The
 // real PKCE redirect is tested against Route itself.
 type recordingRouter struct {
 	hit string
@@ -23,7 +22,7 @@ func (recordingRouter) Handle(http.ResponseWriter, *http.Request) (string, error
 }
 
 func (r *recordingRouter) Route(w http.ResponseWriter, req *http.Request) bool {
-	p := config.Conf.S.Prefix
+	p := config.Conf.AdminPrefix()
 	switch {
 	case strings.HasPrefix(req.URL.Path, p+auth.LoginPath),
 		strings.HasPrefix(req.URL.Path, p+auth.CallbackPath),
@@ -36,37 +35,44 @@ func (r *recordingRouter) Route(w http.ResponseWriter, req *http.Request) bool {
 	}
 }
 
-// TestServeStaticDispatchesAuthRoutes checks the login flow is answered
-// before the dotted-path fallthrough, which would otherwise 404 it.
-func TestServeStaticDispatchesAuthRoutes(t *testing.T) {
+// TestAdminDispatchesAuthRoutes checks the login flow is answered on the
+// console prefix, and that the same paths on the shortener are not a page.
+func TestAdminDispatchesAuthRoutes(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
 	config.Conf.S.Prefix = "/s/"
+	config.Conf.A.Prefix = "/a/"
 
 	routes := &recordingRouter{}
 	s := &service{latere: routes}
 	for _, path := range []string{
-		"/s/" + auth.LoginPath,
-		"/s/" + auth.CallbackPath,
-		"/s/" + auth.LogoutPath,
+		"/a/" + auth.LoginPath,
+		"/a/" + auth.CallbackPath,
+		"/a/" + auth.LogoutPath,
 	} {
 		routes.hit = ""
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, path, nil)
-		if err := s.serveStatic(context.Background(), w, r); err != nil {
-			t.Fatalf("%s: %v", path, err)
-		}
+		s.AHandler().ServeHTTP(w, r)
 		if w.Code != http.StatusNoContent || routes.hit != path {
 			t.Fatalf("%s: status %d, handled %q", path, w.Code, routes.hit)
 		}
 	}
 
-	// Without a relying party the same path is not a page.
+	// The public prefix does not grow a login route of its own.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/s/"+auth.LoginPath, nil)
-	if err := (&service{}).serveStatic(context.Background(), w, r); err != nil {
+	if err := (&service{}).serveStatic(r.Context(), w, r); err != nil {
 		t.Fatal(err)
 	}
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("shortener login route status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+
+	// Without a relying party the console path is not a page either.
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodGet, "/a/"+auth.LoginPath, nil)
+	(&service{}).AHandler().ServeHTTP(w, r)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("unconfigured login route status = %d, want %d", w.Code, http.StatusNotFound)
 	}
@@ -80,19 +86,20 @@ func TestHandleAuthSendsAnonymousToLogin(t *testing.T) {
 	config.Conf.Auth.Enable = config.Latere
 	config.Conf.Host = "https://example.com"
 	config.Conf.S.Prefix = "/s/"
+	config.Conf.A.Prefix = "/a/"
 	t.Setenv("AUTH_ALLOWED_PRINCIPALS", "hi@example.com")
 	t.Setenv("AUTH_CLIENT_ID", "gore-test")
 	t.Setenv("AUTH_COOKIE_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("AUTH_URL", "https://auth.example.test")
 	t.Setenv("AUTH_REDIRECT_URL", "")
 
-	latere := auth.NewLatereAuth("/s/")
+	latere := auth.NewLatereAuth("/a/")
 	if latere == nil {
 		t.Fatal("expected a configured relying party")
 	}
 	s := &service{latere: latere}
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/?mode=admin", nil)
+	r := httptest.NewRequest("GET", "/a/", nil)
 
 	user, err := s.handleAuth(w, r)
 	if err == nil {
@@ -109,14 +116,14 @@ func TestHandleAuthSendsAnonymousToLogin(t *testing.T) {
 	}
 
 	loc := w.Header().Get("Location")
-	if !strings.HasPrefix(loc, "/s/"+auth.LoginPath) {
+	if !strings.HasPrefix(loc, "/a/"+auth.LoginPath) {
 		t.Errorf("handleAuth redirected to %q, want the login route", loc)
 	}
 	u, err := http.NewRequest(http.MethodGet, loc, nil)
 	if err != nil {
 		t.Fatalf("cannot parse %q: %v", loc, err)
 	}
-	if got := u.URL.Query().Get("return_to"); got != "/s/?mode=admin" {
+	if got := u.URL.Query().Get("return_to"); got != "/a/" {
 		t.Errorf("return_to = %q, want the originally requested page", got)
 	}
 }
@@ -130,7 +137,7 @@ func TestHandleAuthUnconfiguredLatereRefuses(t *testing.T) {
 
 	s := &service{}
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/?mode=admin", nil)
+	r := httptest.NewRequest("GET", "/a/", nil)
 
 	user, err := s.handleAuth(w, r)
 	if err == nil || !errors.Is(err, auth.ErrUnauthorized) {
@@ -158,7 +165,7 @@ func TestHandleAuthUnknownModeRefuses(t *testing.T) {
 
 	s := &service{}
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/?mode=admin", nil)
+	r := httptest.NewRequest("GET", "/a/", nil)
 
 	user, err := s.handleAuth(w, r)
 	if err == nil {

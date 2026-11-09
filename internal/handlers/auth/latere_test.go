@@ -75,7 +75,7 @@ func testAuth(t *testing.T) *latereAuth {
 	c := oidc.New(oidc.Config{
 		AuthURL:     "https://auth.example.test",
 		ClientID:    "gore-test",
-		RedirectURL: "https://example.com/s/" + CallbackPath,
+		RedirectURL: "https://example.com/a/" + CallbackPath,
 		CookieKey:   "0123456789abcdef0123456789abcdef",
 	})
 	if c == nil {
@@ -94,10 +94,11 @@ func TestLoginRoute(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
 	config.Conf.S.Prefix = "/s/"
+	config.Conf.A.Prefix = "/a/"
 
 	a := testAuth(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/s/"+LoginPath+"?return_to=%2Fs%2F%3Fmode%3Dadmin", nil)
+	r := httptest.NewRequest("GET", "/a/"+LoginPath+"?return_to=%2Fa%2F", nil)
 	if !a.Route(w, r) {
 		t.Fatal("login route was not handled")
 	}
@@ -152,10 +153,10 @@ func TestCallbackURLsPerSite(t *testing.T) {
 		"examplepkg.com": {RepoPath: "https://github.com/examplepkg"},
 	}
 
-	got := callbackURLs("/s/")
+	got := callbackURLs("/a/")
 	want := map[string]string{
-		"example.com":    "https://example.com/s/.auth/callback",
-		"examplepkg.com": "https://examplepkg.com/s/.auth/callback",
+		"example.com":    "https://example.com/a/.auth/callback",
+		"examplepkg.com": "https://examplepkg.com/a/.auth/callback",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d callbacks, want %d: %v", len(got), len(want), got)
@@ -173,18 +174,18 @@ func TestCallbackURLsPerSite(t *testing.T) {
 func TestCallbackURLsHonourTheOverride(t *testing.T) {
 	saved := config.Conf
 	t.Cleanup(func() { config.Conf = saved })
-	t.Setenv("AUTH_REDIRECT_URL", "https://proxy.example/s/.auth/callback")
+	t.Setenv("AUTH_REDIRECT_URL", "https://proxy.example/a/.auth/callback")
 
 	config.Conf.Host = "https://example.com"
 	config.Conf.Hosts = map[string]config.SiteOverride{
 		"examplepkg.com": {},
 	}
 
-	got := callbackURLs("/s/")
-	if got["example.com"] != "https://proxy.example/s/.auth/callback" {
+	got := callbackURLs("/a/")
+	if got["example.com"] != "https://proxy.example/a/.auth/callback" {
 		t.Errorf("the override was ignored: %q", got["example.com"])
 	}
-	if got["examplepkg.com"] != "https://examplepkg.com/s/.auth/callback" {
+	if got["examplepkg.com"] != "https://examplepkg.com/a/.auth/callback" {
 		t.Errorf("the second site = %q", got["examplepkg.com"])
 	}
 }
@@ -199,7 +200,7 @@ func TestCallbackURLsFollowTheScheme(t *testing.T) {
 	config.Conf.Host = "http://localhost:9123"
 	config.Conf.Hosts = map[string]config.SiteOverride{"other.local": {}}
 
-	if got := callbackURLs("/s/")["other.local"]; got != "http://other.local/s/.auth/callback" {
+	if got := callbackURLs("/a/")["other.local"]; got != "http://other.local/a/.auth/callback" {
 		t.Errorf("callback = %q, want the configured scheme", got)
 	}
 }
@@ -230,7 +231,7 @@ func TestClientForSelectsTheSite(t *testing.T) {
 		{"evil.example", primary},
 		{"", primary},
 	} {
-		r := httptest.NewRequest(http.MethodGet, "/s/.auth/login", nil)
+		r := httptest.NewRequest(http.MethodGet, "/a/.auth/login", nil)
 		r.Host = tt.host
 		if got := a.clientFor(r); got != tt.want {
 			t.Errorf("clientFor(%q) picked the wrong site", tt.host)
@@ -244,7 +245,7 @@ func TestClientForSelectsTheSite(t *testing.T) {
 	if nilAuth.clientFor(httptest.NewRequest(http.MethodGet, "/", nil)) != nil {
 		t.Error("a nil latereAuth returned a client")
 	}
-	if nilAuth.Route(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/s/.auth/login", nil)) {
+	if nilAuth.Route(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/a/.auth/login", nil)) {
 		t.Error("a nil latereAuth handled a login route")
 	}
 }

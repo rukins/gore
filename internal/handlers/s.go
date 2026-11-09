@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +38,9 @@ func (s *service) SHandler() http.HandlerFunc {
 		case http.MethodOptions:
 			// nothing, really.
 		case http.MethodPost:
-			s.sHandlerPost(w, r)
+			// Creating and editing links is the console's API. 
+			// It is served on the console prefix, not here.
+			http.NotFound(w, r)
 		case http.MethodGet:
 			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Set("Cache-Control", "max-age=0")
@@ -63,9 +64,9 @@ type shortOutput struct {
 	Alias   string `json:"alias,omitempty"`
 }
 
-// sHandlerPost handles all kinds of operations.
-// This is not a RESTful style, because we don't have that much router space
-// to use. We are currently limited the single index router, which is the /s.
+// sHandlerPost creates, updates and deletes links. The console prefix
+// is what serves it. One route carries every operator, because the
+// console is the only caller and a proxy matches the prefix once.
 func (s *service) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
@@ -150,12 +151,10 @@ func (s *service) sHandlerPost(w http.ResponseWriter, r *http.Request) {
 func (s *service) sHandlerGet(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
-		if err != nil && !errors.Is(err, auth.ErrUnauthorized) {
-			// Just redirect the user we could not find the record rather than
-			// throw 50x. The server logs should be able to identify the issue.
-			log.Printf("request err: %v\n", err)
-			http.Redirect(w, r, "/404.html", http.StatusTemporaryRedirect)
-		}
+		// Just redirect the user we could not find the record rather than
+		// throw 50x. The server logs should be able to identify the issue.
+		// A refused login has already written its own answer.
+		answerErr(w, r, err)
 	}()
 
 	ctx := r.Context()
@@ -285,92 +284,6 @@ type pageInfo struct {
 	ShowContact   bool
 }
 
-func (s *service) serveStatic(
-	ctx context.Context,
-	w http.ResponseWriter,
-	r *http.Request,
-) error {
-	prefix := config.Conf.S.Prefix
-
-	site := config.Conf.SiteFor(r.Host)
-
-	// Login, callback, and logout are dotted paths, like the static files.
-	// They exist only when latere is configured. Anything else falls
-	// through to the files and the legal pages.
-	if routes, ok := s.latere.(auth.Router); ok && routes.Route(w, r) {
-		return nil
-	}
-
-	var (
-		t *template.Template
-		d *pageInfo
-	)
-	switch {
-	case strings.HasPrefix(r.URL.Path, prefix+".static"):
-		// Serve static files under ./.static/*. This should not conflict
-		// with all existing aliases, meaning that alias should not start
-		// with a dot.
-		ext := filepath.Ext(r.URL.Path)
-		switch ext {
-		case ".css":
-			w.Header().Add("Content-Type", "text/css")
-		case ".js":
-			w.Header().Add("Content-Type", "text/javascript")
-		}
-
-		f, err := s.statics.Open(strings.TrimPrefix(r.URL.Path, prefix+".static/"))
-		if err != nil {
-			return err
-		}
-		b, err := io.ReadAll(f)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(b)
-		return err
-	case strings.HasPrefix(r.URL.Path, prefix+".impressum"):
-		if site.ShowImpressum {
-			t = s.impressum
-		}
-		d = &pageInfo{
-			Body:          template.HTML(config.Conf.GDPR.Impressum.Content),
-			ShowImpressum: site.ShowImpressum,
-			ShowPrivacy:   site.ShowPrivacy,
-			ShowContact:   site.ShowContact,
-		}
-	case strings.HasPrefix(r.URL.Path, prefix+".privacy"):
-		if site.ShowPrivacy {
-			t = s.privacy
-		}
-		d = &pageInfo{
-			Body:          template.HTML(config.Conf.GDPR.Privacy.Content),
-			ShowImpressum: site.ShowImpressum,
-			ShowPrivacy:   site.ShowPrivacy,
-			ShowContact:   site.ShowContact,
-		}
-	case strings.HasPrefix(r.URL.Path, prefix+".contact"):
-		if site.ShowContact {
-			t = s.contact
-		}
-		d = &pageInfo{
-			Email:         config.Conf.GDPR.Contact.Email,
-			ShowImpressum: site.ShowImpressum,
-			ShowPrivacy:   site.ShowPrivacy,
-			ShowContact:   site.ShowContact,
-		}
-	}
-	if t != nil {
-		d.Site = r.Host
-		d.Prefix = prefix
-		return t.ExecuteTemplate(w, "layout", d)
-	}
-	// A site that does not carry these pages has no such route. Saying so
-	// is better than an empty 200, which reads as a page that is merely
-	// blank.
-	http.NotFound(w, r)
-	return nil
-}
-
 const (
 	goreVidCookie   = "gore_vid"
 	goreAllowCookie = "gore_allow"
@@ -494,36 +407,36 @@ var (
 	errMissingStatParam = errors.New("missing stat parameter")
 )
 
-// sIndex serves two types of index page, and serves statistics data.
-//
-// If there are no supplied value of a `mode` query parameter, the method
-// returns a public visible index page that contains all publicly visible
-// short urls.
-//
-// If the query parameter contains mode=admin, then it requires basic
-// auth to access the admin dashboard where one can manage all short urls.
-//
-// If the query parameter contaisn mode=stat, then it returns application/json
-// data, which contains data for data visualizations in the index page.
-func (s *service) sIndex(
-	ctx context.Context,
-	w http.ResponseWriter,
-	r *http.Request,
-) error {
+// answerErr turns a failed lookup into a redirect. The public pages do
+// that rather than answer 500; the log keeps the cause. A refused login
+// has already written its own response and must not be replaced.
+func answerErr(w http.ResponseWriter, r *http.Request, err error) {
+	if err != nil && !errors.Is(err, auth.ErrUnauthorized) {
+		log.Printf("request err: %v\n", err)
+		http.Redirect(w, r, "/404.html", http.StatusTemporaryRedirect)
+	}
+}
+
+// dashboardView is what the console template reads off #root.
+// ShortPrefix is the shortener, not the page's own mount: the console
+// is served elsewhere, and a link copied from it still has to be /s/blog.
+type dashboardView struct {
+	AdminView     bool
+	StatsMode     bool
+	DevMode       bool
+	ShowImpressum bool
+	ShowPrivacy   bool
+	ShowContact   bool
+	LogoutURL     string
+	ShortPrefix   string
+}
+
+func newDashboardView(r *http.Request, admin bool) dashboardView {
 	// The legal pages name an operator, so they belong to the site that
 	// was asked for rather than to the process.
 	site := config.Conf.SiteFor(r.Host)
-
-	e := struct {
-		AdminView     bool
-		StatsMode     bool
-		DevMode       bool
-		ShowImpressum bool
-		ShowPrivacy   bool
-		ShowContact   bool
-		LogoutURL     string
-	}{
-		AdminView:     false,
+	return dashboardView{
+		AdminView:     admin,
 		StatsMode:     config.Conf.Stats.Enable,
 		DevMode:       config.Conf.Development,
 		ShowImpressum: site.ShowImpressum,
@@ -531,41 +444,37 @@ func (s *service) sIndex(
 		ShowContact:   site.ShowContact,
 		// Only a real session can be ended. Under basic auth the dashboard
 		// keeps its old reload-the-page behaviour.
-		LogoutURL: logoutURL(),
+		LogoutURL:   logoutURL(),
+		ShortPrefix: config.Conf.S.Prefix,
 	}
+}
 
-	mode := r.URL.Query().Get("mode")
-	switch mode {
-	case "stats": // stats data is public to everyone
-		if config.Conf.Stats.Enable {
-			err := s.statData(ctx, w, r)
-			if !errors.Is(err, errInvalidStatParam) {
-				return err
-			}
-			log.Println(err)
-		}
-	case "index": // public visible index data
+// sIndex serves the public index. No mode renders the page. mode=index
+// is its listing. The console and its documents are not modes of this
+// page: a query here cannot be kept off the public router, and a
+// redirect would publish the console's prefix.
+func (s *service) sIndex(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+) error {
+	switch r.URL.Query().Get("mode") {
+	case "":
+		// The public index, rendered below.
+	case "index":
 		return s.indexData(ctx, w, r, true)
-	case "index-pro": // data with statistics
-		return s.indexData(ctx, w, r, false)
-	case "overview": // totals for the console's header
-		return s.overviewData(ctx, w, r)
-	case "admin":
-		_, err := s.handleAuth(w, r)
-		if err != nil {
-			return err
-		}
-		e.AdminView = true
 	default:
-		// Process visitor information for public index, wait maximum 5 seconds.
-		recordCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		s.recognizeVisitor(recordCtx, w, r, "")
+		http.NotFound(w, r)
+		return nil
 	}
 
-	// Serve the index page.
+	// Process visitor information for public index, wait maximum 5 seconds.
+	recordCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	s.recognizeVisitor(recordCtx, w, r, "")
+
 	w.Header().Add("Content-Type", "text/html")
-	return s.dashboard.Execute(w, e)
+	return s.dashboard.Execute(w, newDashboardView(r, false))
 }
 
 // indexOutput is the link listing. Series carries one entry per alias on

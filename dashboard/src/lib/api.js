@@ -1,12 +1,18 @@
 import { basePath } from './paths'
 
-// origin is where the API lives. In development the dashboard is served
-// by Vite and the server is elsewhere, so the two are not the same.
-const origin = (devMode) =>
-  devMode ? 'http://localhost:9150/s' : basePath()
+// The dev server is Vite, which is not mounted on either prefix. The
+// public index talks to /s and the console talks to /a, the defaults.
+// A configured prefix is what the page was actually served on, which
+// basePath already is outside of dev.
+const devServer = 'http://localhost:9150'
+const apiBase = (devMode, isAdmin) =>
+  devMode ? `${devServer}${isAdmin ? '/a' : '/s'}` : basePath()
 
 const post = async (body) => {
-  const resp = await fetch(basePath() + '/', {
+  // Mutations belong to the console. In dev the page is not served on
+  // its prefix, so the call goes to the console's default mount.
+  const dev = document.getElementById('root')?.getAttribute('dev-mode') === 'true'
+  const resp = await fetch((dev ? `${devServer}/a` : basePath()) + '/', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -30,8 +36,8 @@ const post = async (body) => {
   return { error: null, alias: payload.alias || null }
 }
 
-const get = async (devMode, params) => {
-  const resp = await fetch(`${origin(devMode)}/?${new URLSearchParams(params)}`)
+const get = async (devMode, isAdmin, params) => {
+  const resp = await fetch(`${apiBase(devMode, isAdmin)}/?${new URLSearchParams(params)}`)
   if (!resp.ok) {
     throw new Error(`request failed (${resp.status})`)
   }
@@ -41,7 +47,7 @@ const get = async (devMode, params) => {
 // fetchIndex returns a page of links. The admin listing carries the
 // counts and a series per row; the public one carries neither.
 export const fetchIndex = async ({ isAdmin, devMode, page, pageSize }) => {
-  const data = await get(devMode, {
+  const data = await get(devMode, isAdmin, {
     mode: isAdmin ? 'index-pro' : 'index',
     pn: page,
     ps: pageSize,
@@ -56,10 +62,10 @@ export const fetchIndex = async ({ isAdmin, devMode, page, pageSize }) => {
 }
 
 export const fetchOverview = (devMode, t0, t1) =>
-  get(devMode, { mode: 'overview', t0, t1 })
+  get(devMode, true, { mode: 'overview', t0, t1 })
 
 export const fetchStat = (devMode, alias, stat, t0, t1) =>
-  get(devMode, { mode: 'stats', a: alias, stat, t0, t1 })
+  get(devMode, true, { mode: 'stats', a: alias, stat, t0, t1 })
 
 export const save = (op, alias, data) => post({ op, alias, data })
 

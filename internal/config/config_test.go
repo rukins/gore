@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseConfig(t *testing.T) {
@@ -48,5 +50,42 @@ func TestMissingConfigIsFatal(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "cannot read GORE_CONF") {
 		t.Errorf("want a message naming GORE_CONF, got:\n%s", out)
+	}
+}
+
+func TestAdminCanBeClosed(t *testing.T) {
+	var c config
+	if err := yaml.Unmarshal([]byte("admin:\n  enable: false\n"), &c); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.checkAdmin(); err != nil {
+		t.Fatal(err)
+	}
+	if c.A.Enable {
+		t.Fatal("admin.enable false left the console on")
+	}
+}
+
+func TestAdminPrefixMustBeAPrefix(t *testing.T) {
+	c := config{}
+	c.S.Prefix = "/s/"
+	c.X.Prefix = "/x/"
+	c.A.Enable = true
+	c.A.Prefix = "/a"
+	if err := c.checkAdmin(); err == nil {
+		t.Fatal("a prefix without a trailing slash was accepted")
+	}
+}
+
+func TestAdminPrefixMustNotCollide(t *testing.T) {
+	for _, prefix := range []string{"/s/", "/x/", "/s/a/"} {
+		c := config{}
+		c.S.Prefix = "/s/"
+		c.X.Prefix = "/x/"
+		c.A.Enable = true
+		c.A.Prefix = prefix
+		if err := c.checkAdmin(); err == nil {
+			t.Errorf("admin.prefix %q was accepted", prefix)
+		}
 	}
 }

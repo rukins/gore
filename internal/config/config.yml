@@ -31,6 +31,10 @@ x:
   vcs: git
   repo_path: https://github.com/rukins
   godoc_host: https://pkg.go.dev/
+# The console is its own prefix, so a proxy can keep it off the public router while still forwarding /s and /x.
+a:
+  enable: true
+  prefix: /a/
 auth:
   enable: basic # or latere, none
   basic:

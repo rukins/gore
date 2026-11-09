@@ -3,6 +3,7 @@ package config
 import (
 	"cmp"
 	_ "embed"
+	"fmt"
 	"log"
 	"net"
 	"net/url"
@@ -46,6 +47,10 @@ type config struct {
 		RepoPath   string `yaml:"repo_path"`
 		GoDocHost  string `yaml:"godoc_host"`
 	} `yaml:"x"`
+	A struct {
+		Enable bool  `yaml:"enable"`
+		Prefix string `yaml:"prefix"`
+	} `yaml:"a"`
 	Auth struct {
 		Enable authType `yaml:"enable"`
 		Basic  []struct {
@@ -167,6 +172,42 @@ func (c *config) ResolveHost(h string) string {
 	return c.SiteFor(h).Host
 }
 
+// AdminPrefix is the console's mount, including the trailing slash.
+// An empty configuration means /a/.
+func (c *config) AdminPrefix() string {
+	if c.A.Prefix == "" {
+		return "/a/"
+	}
+	return c.A.Prefix
+}
+
+// checkAdmin fills the console defaults and refuses a prefix that a proxy
+// could not split from the public routes. One prefix nesting inside
+// another would make the two handlers fight over the same paths.
+func (c *config) checkAdmin() error {
+	if c.A.Prefix == "" {
+		c.A.Prefix = "/a/"
+	}
+	if !c.A.Enable {
+		return nil
+	}
+	p := c.A.Prefix
+	if len(p) < 2 || !strings.HasPrefix(p, "/") || !strings.HasSuffix(p, "/") {
+		return fmt.Errorf("admin.prefix %q must start and end with /", p)
+	}
+	if routeOverlap(p, c.S.Prefix) || routeOverlap(p, c.X.Prefix) {
+		return fmt.Errorf("admin.prefix %q collides with another route", p)
+	}
+	return nil
+}
+
+func routeOverlap(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	return a == b || strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
+}
+
 // NormalizeHost reduces a Host header or a configured URL to the form the
 // store keys on: lowercase, no scheme, no port, no trailing dot.
 func NormalizeHost(h string) string {
@@ -219,6 +260,9 @@ func (c *config) parse() {
 			c.Auth.Enable, None, Basic, Latere)
 	}
 
+	if err := c.checkAdmin(); err != nil {
+		log.Fatalf("cannot use configuration: %v", err)
+	}
 }
 
 var Conf config

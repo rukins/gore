@@ -8,8 +8,8 @@ import (
 // logoutURL is the route that ends a latere session, or the empty string
 // when the deployment has no session to end.
 func logoutURL() string {
-	if config.Conf.Auth.Enable != config.Latere {
+	if !config.Conf.A.Enable || config.Conf.Auth.Enable != config.Latere {
 		return ""
 	}
-	return config.Conf.S.Prefix + auth.LogoutPath
+	return config.Conf.AdminPrefix() + auth.LogoutPath
 }

@@ -1,9 +1,10 @@
 # gore APIs
 
-Everything is served under two prefixes, `/s` and `/x`, both configurable.
-`/s` carries the redirects, the pages and the JSON the console reads,
-because a deployment often shares a domain with something else and cannot
-claim more of it.
+Everything public is served under two prefixes, `/s` and `/x`, both configurable.
+`/s` carries the redirects and the public pages, because a deployment often
+shares a domain with something else and cannot claim more of it. The
+operator console is a third prefix, `/a` by default, so a proxy can keep
+it off the public router. `admin.enable: false` closes it.
 
 Responses are scoped to the host the request arrived on. One process
 serves several sites, and each has its own aliases and its own
@@ -22,15 +23,13 @@ Redirects, or serves a page instead when the link is not ready:
 
 ## GET /s
 
-Without `mode`, serves the public index.
+Without `mode`, serves the public index. `mode=index` is the public listing.
+`mode=admin` is not a page: it answers 404, and it does not redirect,
+because a redirect would publish the console prefix.
 
-### `mode=admin`
+### `mode=index`
 
-The console. Requires a session; see [Login](../README.md#login).
-
-### `mode=index` and `mode=index-pro`
-
-A page of links. `index` is public and `index-pro` requires a session.
+A page of links. The listing discloses neither the target URL nor the counts.
 
 | Parameter | Meaning |
 | --- | --- |
@@ -61,7 +60,15 @@ A page of links. `index` is public and `index-pro` requires a session.
 }
 ```
 
-The public listing discloses neither the target URL nor the counts.
+## GET /a/
+
+The console. Requires a session; see [Login](../README.md#login). The prefix comes from `admin.prefix` and defaults to `/a/`. The public index does not link here.
+
+`index-pro`, `overview`, `stats` and `POST /a/` are the documents this page reads. They are served here, not on `/s`, so the one prefix a proxy matches is the whole operator surface. With the console closed they are not served at all, and the same paths on `/s` answer 404.
+
+### `mode=index-pro`
+
+The console's listing. Requires a session. The shape is the listing above, including the target URL, the counts, and `series`.
 
 ### `mode=overview`
 
@@ -107,9 +114,9 @@ report machines as readers.
 only mode that returns unaggregated strings, and nothing on the console
 draws it.
 
-## POST /s
+## POST /a/
 
-Creates, updates and deletes links. Requires a session.
+Creates, updates and deletes links. Requires a session. `POST /s` answers 404.
 
 ```jsonc
 {

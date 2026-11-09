@@ -54,6 +54,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
+  window.history.pushState({}, '', '/')
   vi.unstubAllGlobals()
 })
 
@@ -72,16 +73,33 @@ describe('the console', () => {
     expect(screen.getByText('New link')).toBeTruthy()
   })
 
+  it('copies a short link, not a link on the console prefix', async () => {
+    window.history.pushState({}, '', '/a/')
+    mount({
+      'is-admin': true,
+      'stats-mode': true,
+      'short-prefix': '/s/',
+    })
+    render(<App />)
+
+    expect(await screen.findByText('/s/blog')).toBeTruthy()
+    expect(screen.queryByText('/a/blog')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Public index' }).getAttribute('href')).toBe(
+      '/s/',
+    )
+  })
+
   it('renders the public view without the console furniture', async () => {
     mount({ 'is-admin': false })
     render(<App />)
 
     expect(await screen.findByText('/blog')).toBeTruthy()
-    // A visitor gets no totals, no create button and no account menu.
+    // A visitor gets no totals, no create button and no way into the
+    // console. The console's prefix is not published here.
     expect(screen.queryByText('New link')).toBeNull()
     expect(screen.queryByText('Account')).toBeNull()
     expect(screen.queryByText('348,465')).toBeNull()
-    expect(screen.getByText('Sign in')).toBeTruthy()
+    expect(screen.queryByText('Sign in')).toBeNull()
   })
 
   it('shows the legal links the server enabled, and no others', async () => {

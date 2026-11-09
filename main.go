@@ -166,13 +166,20 @@ func newAPI(ctx context.Context) handlers.GoreAPI {
 	})
 
 	// semantic shortener (default)
-	log.Println("router /s is enabled.")
+	log.Printf("router %s is enabled.\n", config.Conf.S.Prefix)
 	http.Handle(config.Conf.S.Prefix, l(api.SHandler()))
 
 	// repo redirector
 	if config.Conf.X.Enable {
-		log.Println("router /x is enabled.")
+		log.Printf("router %s is enabled.\n", config.Conf.X.Prefix)
 		http.Handle(config.Conf.X.Prefix, l(api.XHandler()))
+	}
+
+	// operator console. A separate prefix, so a proxy can decline to
+	// forward it on the public router.
+	if config.Conf.A.Enable {
+		log.Printf("router %s is enabled.\n", config.Conf.AdminPrefix())
+		http.Handle(config.Conf.AdminPrefix(), l(api.AHandler()))
 	}
 
 	return api

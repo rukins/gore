@@ -13,9 +13,10 @@ import (
 	"latere.ai/x/pkg/oidc"
 )
 
-// Routes for the login flow. They sit under the shortener prefix beside
-// .static and .impressum; an alias may not begin with a dot, so these can
-// never collide with a short link.
+// Routes for the login flow. They sit under the console prefix beside its
+// static files. The shortener prefix is public, and a login route there
+// would publish the way in. An alias may not begin with a dot, so the
+// same names under the shortener still cannot collide with a short link.
 const (
 	LoginPath    = ".auth/login"
 	CallbackPath = ".auth/callback"
@@ -79,14 +80,14 @@ func (a *latereAuth) Handle(w http.ResponseWriter, r *http.Request) (user string
 	}
 	// These GETs are served by Route. Handle only answers an admin request
 	// that has no session, by sending the visitor to the login route.
-	http.Redirect(w, r, a.loginURL(config.Conf.S.Prefix, r), http.StatusFound)
+	http.Redirect(w, r, a.loginURL(config.Conf.AdminPrefix(), r), http.StatusFound)
 	return "", fmt.Errorf("%w: no signed in latere principal", ErrUnauthorized)
 }
 
-// Route serves login, callback, and logout. The shortener calls it for
-// every dotted path under the prefix; other paths are left for static
-// files and the legal pages. A nil receiver or a missing client handles
-// nothing, rather than panicking on the method call.
+// Route serves login, callback, and logout. The console calls it for
+// every dotted path under its prefix; other paths are left for its
+// static files. A nil receiver or a missing client handles nothing,
+// rather than panicking on the method call.
 func (a *latereAuth) Route(w http.ResponseWriter, r *http.Request) bool {
 	if a == nil {
 		return false
@@ -95,7 +96,7 @@ func (a *latereAuth) Route(w http.ResponseWriter, r *http.Request) bool {
 	if c == nil {
 		return false
 	}
-	prefix := config.Conf.S.Prefix
+	prefix := config.Conf.AdminPrefix()
 	switch {
 	case strings.HasPrefix(r.URL.Path, prefix+LoginPath):
 		c.HandleLogin(w, r)

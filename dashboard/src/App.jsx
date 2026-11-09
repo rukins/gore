@@ -24,6 +24,7 @@ const App = () => {
         showPrivacy={flag(root, 'show-privacy')}
         showContact={flag(root, 'show-contact')}
         logoutURL={root.getAttribute('logout-url') || ''}
+        shortPrefix={root.getAttribute('short-prefix') || ''}
       />
     </ConfigProvider>
   )

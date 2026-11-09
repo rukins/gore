@@ -41,11 +41,18 @@ const Home = (props) => {
 
   const refresh = () => setReloadKey((k) => k + 1)
 
+  // Legal pages stay on the shortener. A relative link from the console
+  // would look for them under the console prefix, where they are not.
+  const legal = (name) => {
+    const base = (props.shortPrefix || '').replace(/\/$/, '')
+    return base ? `${base}/.${name}` : `./.${name}`
+  }
+
   const footer = (
     <>
-      {props.showImpressum && <a href="./.impressum">Impressum</a>}
-      {props.showPrivacy && <a href="./.privacy">Privacy</a>}
-      {props.showContact && <a href="./.contact">Contact</a>}
+      {props.showImpressum && <a href={legal('impressum')}>Impressum</a>}
+      {props.showPrivacy && <a href={legal('privacy')}>Privacy</a>}
+      {props.showContact && <a href={legal('contact')}>Contact</a>}
       <span>gore on {props.site}</span>
     </>
   )
@@ -55,6 +62,7 @@ const Home = (props) => {
       site={props.site}
       isAdmin={props.isAdmin}
       logoutURL={props.logoutURL}
+      shortPrefix={props.shortPrefix}
       footer={footer}
     >
       {props.isAdmin && (

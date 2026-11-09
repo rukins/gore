@@ -21,6 +21,7 @@ type GoreAPI interface {
 
 	SHandler() http.HandlerFunc
 	XHandler() http.HandlerFunc
+	AHandler() http.HandlerFunc
 }
 
 type Assets struct {
@@ -66,8 +67,8 @@ func NewGoreAPI(ctx context.Context, a Assets) GoreAPI {
 	basic := auth.NewBasicAuth()
 
 	var latere auth.Auth
-	if config.Conf.Auth.Enable == config.Latere {
-		latere = auth.NewLatereAuth(config.Conf.S.Prefix)
+	if config.Conf.A.Enable && config.Conf.Auth.Enable == config.Latere {
+		latere = auth.NewLatereAuth(config.Conf.AdminPrefix())
 	}
 
 	// The rest share one layout, so the design lives in a single file
