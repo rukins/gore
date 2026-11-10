@@ -160,7 +160,40 @@ $ gore -d export.yml   # dump them to one
 ## Documentation
 - [API reference](./docs/api.md)
 - [GDPR](./docs/gdpr.md)
-- [Release notes](./CHANGELOG.md)
+
+## Coming from redir
+
+gore is a fork of [redir](https://github.com/changkun/redir). `/s/{alias}` and `/x/` stay. The database does not: redir's serial ids, timestamps, and UUID visitor ids are not converted, and a database that already recorded migration version 1 is skipped. Visit history starts over. Export the aliases before stopping redir.
+
+```sh
+$ REDIR_CONF=data/redirconf.yml ./redir -d links.yml
+$ cp data/redirconf.yml data/goreconf.yml
+$ GORE_CONF=data/goreconf.yml ./gore -f links.yml
+```
+
+The dump is the primary host only, public and private links. For another entry under `hosts:`, point `host:` at it and dump again, then import while gore's `host:` is that site. `pv` and `uv` are ignored. Alias, URL, `private`, `trust`, and `valid_from` are kept, on the host in the gore configuration. The import stops after ten seconds; run it again to finish.
+
+Copy your own file, not the sample, so the legal text stays. `host`, `s`, `x`, `hosts`, `auth`, and `gdpr` mean the same thing. Point `store` at a new database (`sqlite://data/gore.db`, or a new PostgreSQL URL) and add the console. Without this it stays off:
+
+```yaml
+a:
+  enable: true
+  prefix: /a/
+```
+
+The prefix must start and end with `/` and must not overlap `/s/` or `/x/`.
+
+| redir | gore |
+|---|---|
+| `REDIR_CONF`, `data/redirconf.yml` | `GORE_CONF`, `data/goreconf.yml` |
+| `REDIR_IP_HASH_KEY` | `GORE_IP_HASH_KEY` |
+| `redir_vid`, `redir_allow` | `gore_vid`, `gore_allow` |
+| `GET /s?mode=admin`, `POST /s` | `GET /a/`, `POST /a/` |
+| `<host>/s/.auth/callback` | `<host>/a/.auth/callback` |
+
+`GET /s?mode=admin` and `POST /s` are 404. The console's other queries (`index-pro`, `overview`, `stats`) moved to `/a/` with them. A proxy that forwarded only `/s` and `/x` must also forward `/a`. Register `<host>/a/.auth/callback` for Latere; the other `AUTH_*` variables stay. When `gdpr.hide_ip` is set, copy the old secret to `GORE_IP_HASH_KEY` or gore refuses to start. The old cookies are not read, so an accepted external redirect asks again.
+
+Stock Compose publishes `9150:9150`, mounts all of `data/`, and no longer joins `traefik_proxy` or `postgres_internal`. The image is `gore`. To stay behind Traefik, attach that network and drop the published port.
 
 ## Contributing
 This is an open-source project and all contributions are highly welcomed
