@@ -4,7 +4,7 @@ Everything public is served under two prefixes, `/s` and `/x`, both configurable
 `/s` carries the redirects and the public pages, because a deployment often
 shares a domain with something else and cannot claim more of it. The
 operator console is a third prefix, `/a` by default, so a proxy can keep
-it off the public router. `admin.enable: false` closes it.
+it off the public router. `a.enable: false` closes it.
 
 Responses are scoped to the host the request arrived on. One process
 serves several sites, and each has its own aliases and its own
@@ -62,7 +62,7 @@ A page of links. The listing discloses neither the target URL nor the counts.
 
 ## GET /a/
 
-The console. Requires a session; see [Login](../README.md#login). The prefix comes from `admin.prefix` and defaults to `/a/`. The public index does not link here.
+The console. Requires a session; see [Signing in](../README.md#signing-in). The prefix comes from `a.prefix` and defaults to `/a/`. The public index does not link here.
 
 `index-pro`, `overview`, `stats` and `POST /a/` are the documents this page reads. They are served here, not on `/s`, so the one prefix a proxy matches is the whole operator surface. With the console closed they are not served at all, and the same paths on `/s` answer 404.
 

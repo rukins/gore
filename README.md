@@ -11,8 +11,8 @@ readers.
 ![The gore operator console](./.github/assets/admin.png)
 
 ## What it does
-- **Short links** under `/s/`, with semantic aliases rather than
-  generated ones: `/s/blog`, `/s/talks/2026`.
+- **Short links** under `/s/`. Give one a name (`/s/blog`,
+  `/s/talks/2026`), or leave the name empty and one is chosen.
 - **Go vanity imports** under `/x/`, serving the `go-import` meta tag so
   `go get yourdomain.com/x/repo` resolves to your VCS.
 - **A public index** of the links a visitor may follow, which discloses
@@ -20,12 +20,13 @@ readers.
 - **An operator console** at `/a/`: totals, the month as a chart, a
   dense listing with recent traffic per link, and per-link detail. It
   follows the system's light or dark setting. The prefix is not linked
-  from the public index, so a proxy can keep it private. `admin.enable:
+  from the public index, so a proxy can keep it private. `a.enable:
   false` closes it; the command line still manages links.
 - **Statistics** of page and unique views over time, referring hosts,
   browsers, systems and devices. Automated traffic is classified where a
-  visit is recorded and excluded from every figure, with a count of what
-  was left out. On a real deployment that is around half of all visits.
+  visit is recorded and left out of the charts, with a count of what was
+  left out. The visits total still includes it. On a real deployment
+  that is around half of all visits.
 - **Several sites from one process**, each with its own aliases and its
   own statistics.
 - **Access control** per link: keep it off the public index, hold it
@@ -33,7 +34,7 @@ readers.
 - **Pages the GDPR asks for**: impressum, privacy and contact, with
   optional IP hashing.
 
-| Public index | Wating until a date | Leaving the site |
+| Public index | Waiting until a date | Leaving the site |
 |:---:|:---:|:---:|
 | ![](./.github/assets/index.png) | ![](./.github/assets/waiting.png) | ![](./.github/assets/warning.png) |
 
@@ -49,7 +50,7 @@ $ mkdir -p data && cp internal/config/config.yml data/goreconf.yml
 
 ```yaml
 host: https://example.com
-addr: :80
+addr: :9150
 store: sqlite://data/gore.db
 ```
 
@@ -64,10 +65,9 @@ CREATE DATABASE gore OWNER gore;
 store: postgres://gore:secret@localhost:5432/gore?sslmode=disable
 ```
 
-Then run it, with Docker. Compose keeps `data/` on the host, so the SQLite file survives a recreate, and it does not start PostgreSQL:
+Then run it, with Docker. Compose keeps `data/` on the host, so the SQLite file survives a recreate, and it does not start PostgreSQL. It publishes port 9150, which is what the sample configuration listens on:
 
 ```sh
-$ docker network create traefik_proxy
 $ make build && make up
 ```
 
@@ -160,6 +160,7 @@ $ gore -d export.yml   # dump them to one
 ## Documentation
 - [API reference](./docs/api.md)
 - [GDPR](./docs/gdpr.md)
+- [Release notes](./CHANGELOG.md)
 
 ## Contributing
 This is an open-source project and all contributions are highly welcomed
